@@ -7,7 +7,7 @@
     <link href="{{ url_for('static', filename='css/bootstrap.min.css') }}" rel="stylesheet">
     <link href="{{ url_for('static', filename='css/wenet.css') }}" rel="stylesheet">
     <script src="{{ url_for('static', filename='js/jquery-3.3.1.min.js')}}"></script>
-    <script src="{{ url_for('static', filename='js/socket.io-1.4.5.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/socket.io-4.1.2.min.js') }}"></script>
     <script type="text/javascript" charset="utf-8">
 
 
@@ -27,13 +27,13 @@
                 myImageElement.src = 'latest.jpg?rand=' + Math.random();
 
                 var _new_desc = msg.text;
-                $('#image_data').html(_new_desc); 
+                $('#image_data').html(_new_desc);
             });
 
             socket.on('uploader_update', function(msg) {
 
                 var _new_desc = "Uploader Status: " + msg.queued + " Queued, " + msg.uploaded + " Uploaded, " + msg.discarded + " Discarded";
-                $('#uploader_data').html(_new_desc); 
+                $('#uploader_data').html(_new_desc);
             });
 
 
@@ -43,7 +43,7 @@
                 var ppm = msg.ppm.toFixed(1);
 
                 var _new_desc = "SNR: " + snr + " dB"
-                $('#snr-data').html(_new_desc); 
+                $('#snr-data').html(_new_desc);
             });
 
             socket.on('gps_update', function(msg) {
@@ -58,7 +58,7 @@
                     var ascent = msg.ascent_rate.toFixed(1);
 
                     var _new_desc = lat + ", " + lon + " " + alt + "m " + ascent + " m/s"
-                    $('#gps-data').html(_new_desc); 
+                    $('#gps-data').html(_new_desc);
                 }
             });
 
