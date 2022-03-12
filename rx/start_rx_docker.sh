@@ -17,7 +17,7 @@ if [ -z "$MYCALL" ]; then
 fi
 
 # Defaults
-: "${RXFREQ:=441200000}"
+: "${RXFREQ:=443500000}"
 : "${DEVICE:=0}"
 : "${GAIN:=0}"
 : "${BIAS:=0}"
