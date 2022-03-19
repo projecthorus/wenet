@@ -28,6 +28,17 @@ GAIN=0
 BIAS=0
 
 
+# Baud Rate & FSK Demod Oversampling Settings
+#
+# Default: 115177 baud 8x oversampling (Default using a RPi Zero W's UART)
+# Other parameters which *may* work, but are un-tested:
+# 9600 baud, 100x oversampling
+# 4800 baud, 200x oversampling
+#
+BAUD_RATE=115177
+OVERSAMPLING=8
+
+
 # Stop and remove any existing wenet instances
 echo "Stopping/Removing any existing Wenet instances..."
 docker stop wenet || true && docker rm wenet || true
@@ -40,6 +51,8 @@ docker run -d \
 	-e RXFREQ=$RXFREQ \
 	-e GAIN=$GAIN \
 	-e BIAS=$BIAS \
+	-e BAUD_RATE=$BAUD_RATE \
+	-e OVERSAMPLING=$OVERSAMPLING \
 	-v ~/wenet/rx_images/:/opt/wenet/rx_images/ \
 	--device /dev/bus/usb \
 	-p 5003:5003 \
