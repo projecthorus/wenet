@@ -556,7 +556,8 @@ def sec_payload_decode(packet):
     packet = bytes(bytearray(packet))
     message = {}
     try:
-        message['id'] = struct.unpack("B",packet[1])[0]
+        #message['id'] = struct.unpack("B",packet[1:2])[0]
+        message['id'] = packet[1]
         message['payload'] = packet[2:]
     except:
         return {'error': 'Could not decode secondary payload packet.'}

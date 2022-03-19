@@ -31,11 +31,12 @@ def process_sec_text_message(payload):
     payload (str): The packet payload as a string, or a list.
     """
     # Convert the payload into a string if it isn't already.
-    payload = str(bytearray(payload))
+    payload = bytes(bytearray(payload))
 
     # Attempt to decode the text message from the payload.
     try:
-        _len = struct.unpack("B",payload[1])[0]
+        #_len = struct.unpack("B",payload[1])[0]
+        _len = payload[1]
         _count = struct.unpack(">H",payload[2:4])[0]
         _text = payload[4:4+_len]
     except:
@@ -53,13 +54,14 @@ def process_sec_floats(payload):
     payload (str): The packet payload as a string, or a list.
     """
     # Convert the payload into a string if it isn't already.
-    payload = str(bytearray(payload))
+    payload = bytes(bytearray(payload))
 
     output = []
 
     try:
         # Second byte in the packet is the number of floats present.
-        _len = struct.unpack("B", payload[1])[0]
+        #_len = struct.unpack("B", payload[1])[0]
+        _len = payload[1]
 
         for _i in range(_len):
             _float = struct.unpack(">f", payload[2+_i*4: 6+_i*4])[0]
@@ -106,13 +108,15 @@ def process_udp(udp_packet):
     """ Process received UDP packets. """
 
     # Parse JSON
-    packet_dict = json.loads(udp_packet)
+    packet_dict = json.loads(udp_packet.decode())
 
     # There may be other UDP traffic on this port, so we filter for just 'WENET'
     # telemetry packets.
     if packet_dict['type'] == 'WENET':
         # Extract the actual packet contents from the JSON blob.
         packet = packet_dict['packet']
+
+        print(packet)
 
         # Check for a 'secondary payload' packet
         if decode_packet_type(packet) == WENET_PACKET_TYPES.SEC_PAYLOAD_TELEMETRY:

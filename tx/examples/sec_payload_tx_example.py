@@ -44,9 +44,9 @@ def emit_secondary_packet(id=0, packet="", repeats = 1, hostname='<broadcast>', 
 
     # Send to target hostname. If this fails just send to localhost.
     try:
-        telemetry_socket.sendto(json.dumps(data), (hostname, port))
+        telemetry_socket.sendto(json.dumps(data).encode(), (hostname, port))
     except socket.error:
-        telemetry_socket.sendto(json.dumps(data), ('127.0.0.1', port))
+        telemetry_socket.sendto(json.dumps(data).encode(), ('127.0.0.1', port))
 
     telemetry_socket.close()
 
@@ -77,7 +77,7 @@ def create_text_message(message):
     _PACKET_COUNTER = text_message_counter
 
     # Assemble the packet.
-    _packet = struct.pack(">BBH", _PACKET_TYPE, _PACKET_LEN, _PACKET_COUNTER) + message
+    _packet = struct.pack(">BBH", _PACKET_TYPE, _PACKET_LEN, _PACKET_COUNTER) + message.encode('ascii')
 
     return _packet
 
@@ -98,7 +98,7 @@ def create_arbitrary_float_packet(data=[0.0, 0.1]):
     _PACKET_LEN = len(data)
 
     # Convert the list of floats into a byte array representation.
-    _float_bytes = bytes("")
+    _float_bytes = b""
 
     for _val in data:
         _float_bytes += struct.pack(">f", _val)
