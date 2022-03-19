@@ -274,7 +274,7 @@ class WenetPiCam(object):
 					return
 
 			# Inform ground station we are about to send an image.
-			self.debug_message("Transmitting %d PiCam SSDV Packets." % (file_size/256))
+			self.debug_message("Transmitting %d PiCam SSDV Packets." % (file_size//256))
 
 			# Push SSDV file into transmit queue.
 			tx.queue_image_file(ssdv_filename)
