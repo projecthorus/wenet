@@ -10,7 +10,7 @@
 import PacketTX,  sys, os, time
 import numpy as np
 
-payload = np.arange(0,256,1).astype(np.uint8).tostring() # 0->255
+payload = np.arange(0,256,1).astype(np.uint8).tobytes() # 0->255
 
 debug_output = False # If True, packet bits are saved to debug.bin as one char per bit.
 

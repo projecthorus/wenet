@@ -11,7 +11,7 @@ import PacketTX,  sys, os, argparse
 
 # Set to whatever resolution you want to test.
 file_path = "../test_images/%d_raw.bin" # _raw, _800x608, _640x480, _320x240
-image_numbers = xrange(1,14)
+image_numbers = range(1,14)
 
 debug_output = False # If True, packet bits are saved to debug.bin as one char per bit.
 
@@ -22,11 +22,11 @@ def transmit_file(filename, tx_object):
 		print("File size not a multiple of 256 bytes!")
 		return
 
-	print("Transmitting %d Packets." % (file_size/256))
+	print("Transmitting %d Packets." % (file_size//256))
 
 	f = open(filename,'rb')
 
-	for x in range(file_size/256):
+	for x in range(file_size//256):
 		data = f.read(256)
 		tx_object.tx_packet(data)
 
