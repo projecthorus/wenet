@@ -151,8 +151,8 @@ def post_process_image(filename):
 
 
 # Finally, initialise the PiCam capture object.
-picam = WenetPiCam.WenetPiCam(src_resolution=(1920,1088), 
-		tx_resolution=(1920,1088), 
+picam = WenetPiCam.WenetPiCam(src_resolution=(3280,2464), 
+		tx_resolution=(1488,1120), 
 		callsign=callsign, 
 		num_images=5, 
 		debug_ptr=tx.transmit_text_message, 

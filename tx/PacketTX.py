@@ -16,7 +16,6 @@
 
 
 import serial
-import Queue
 import sys
 import os
 import datetime
@@ -29,6 +28,7 @@ from time import sleep
 from threading import Thread
 import numpy as np
 from ldpc_encoder import *
+from queue import Queue
 
 class PacketTX(object):
     """ Packet Transmitter Class
@@ -56,15 +56,15 @@ class PacketTX(object):
     """
 
     # Transmit Queues.
-    ssdv_queue = Queue.Queue(4096) # Up to 1MB of 256 byte packets
-    telemetry_queue = Queue.Queue(256) # Keep this queue small. It's up to the user not to over-use this queue.
+    ssdv_queue = Queue(4096) # Up to 1MB of 256 byte packets
+    telemetry_queue = Queue(256) # Keep this queue small. It's up to the user not to over-use this queue.
 
     # Framing parameters
-    unique_word = "\xab\xcd\xef\x01"
-    preamble = "\x55"*16
+    unique_word = b"\xab\xcd\xef\x01"
+    preamble = b"\x55"*16
 
     # Idle sequence, transmitted if there is nothing in the transmit queues.
-    idle_sequence = "\x56"*256
+    idle_sequence = b"\x56"*256
 
     # Transmit thread active flag.
     transmit_active = False
@@ -94,7 +94,7 @@ class PacketTX(object):
 
 
         self.payload_length = payload_length
-        self.callsign = callsign
+        self.callsign = callsign.encode('ascii')
         self.fec = fec
 
         self.crc16 = crcmod.predefined.mkCrcFun('crc-ccitt-false')
@@ -130,25 +130,25 @@ class PacketTX(object):
             packet = packet[:self.payload_length]
 
         if len(packet) < self.payload_length:
-            packet = packet + "\x55"*(self.payload_length - len(packet))
+            packet = packet + b"\x55"*(self.payload_length - len(packet))
 
         crc = struct.pack("<H",self.crc16(packet))
 
         if fec:
-            parity = ldpc_encode_string(packet + crc)
+            parity = ldpc_encode(packet + crc)
             return self.preamble + self.unique_word + packet + crc + parity
         else:
             return self.preamble + self.unique_word + packet + crc 
 
 
     def set_idle_message(self, message):
-        temp_msg = "\x00" + "DE %s: \t%s" % (self.callsign, message)
+        temp_msg = b"\x00" + b"DE %s: \t%s" % (self.callsign, message.encode('ascii'))
         self.idle_message = self.frame_packet(temp_msg,fec=self.fec)
 
 
     def generate_idle_message(self):
         # Append a \x00 control code before the data
-        return "\x00" + "DE %s: \t%s" % (self.callsign,self.idle_message)
+        return b"\x00" + b"DE %s: \t%s" % (self.callsign,self.idle_message)
 
 
     def tx_thread(self):
@@ -207,7 +207,7 @@ class PacketTX(object):
         file_size = os.path.getsize(filename)
         try:
             f = open(filename,'rb')
-            for x in range(file_size/256):
+            for x in range(file_size//256):
                 data = f.read(256)
                 self.queue_image_packet(data)
             f.close()
@@ -249,7 +249,7 @@ class PacketTX(object):
         if len(message) > 252:
             message = message[:252]
 
-        packet = "\x00" + struct.pack(">BH",len(message),self.text_message_count) + message
+        packet = b"\x00" + struct.pack(">BH",len(message),self.text_message_count) + message.encode('ascii')
 
         self.queue_telemetry_packet(packet, repeats=repeats)
         log_string = "TXing Text Message #%d: %s" % (self.text_message_count,message)
@@ -419,13 +419,13 @@ class PacketTX(object):
         _id = int(id) % 256
 
         # Convert the provided data to a string
-        _data = str(bytearray(data))
+        _data = bytes(bytearray(data))
         # Clip to 254 bytes.
         if len(_data) > 254:
             _data = _data[:254]
 
         
-        _packet = "\x03" + struct.pack(">B",_id) + _data
+        _packet = b"\x03" + struct.pack(">B",_id) + _data
 
         self.queue_telemetry_packet(_packet, repeats=repeats)
 
@@ -438,7 +438,7 @@ class PacketTX(object):
     def handle_udp_packet(self, packet):
         ''' Process a received UDP packet '''
         try:
-            packet_dict = json.loads(packet)
+            packet_dict = json.loads(packet.decode())
 
             if packet_dict['type'] == 'WENET_TX_TEXT':
                 # Transmit an arbitrary text packet.

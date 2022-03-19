@@ -10,6 +10,7 @@
 #   Released under GNU GPL v3 or later
 #
 
+import codecs
 import ctypes
 from numpy.ctypeslib import ndpointer
 import numpy as np
@@ -38,21 +39,22 @@ except OSError as e:
 #   Accepts a 258 byte string as input, returns the LDPC parity bits.
 #
 
-def ldpc_encode_string(payload, Nibits = 2064, Npbits = 516):
+def ldpc_encode(payload, Nibits = 2064, Npbits = 516):
     if len(payload) != 258:
         raise TypeError("Payload MUST be 258 bytes in length! (2064 bit codeword)")
 
     # Get input data into the right form (list of 0s and 1s)
-    ibits = np.unpackbits(np.fromstring(payload,dtype=np.uint8)).astype(np.uint8)
+    ibits = np.unpackbits(np.frombuffer(payload,dtype=np.uint8)).astype(np.uint8)
     pbits = np.zeros(Npbits).astype(np.uint8)
 
     _ldpc_enc.encode(ibits, pbits)
 
-    return np.packbits(np.array(list(pbits)).astype(np.uint8)).tostring()
+    return np.packbits(np.array(list(pbits)).astype(np.uint8)).tobytes()
 
 
 #
-#   Interleaver functions
+#   Interleaver functions - Note that these are not used in Wenet right now.
+#   These also may not work under Python 3
 #
 
 # These variables need to be synchronised with those in ldpc_enc.c, until i figure out a better way
@@ -113,26 +115,26 @@ def interleave_test():
 
 def generate_dummy_packet():
     payload = np.arange(0,256,1)
-    payload = np.append(payload,[0,0]).astype(np.uint8).tostring() # Add on dummy checksum, for a total of 258 bytes.
+    payload = np.append(payload,[0,0]).astype(np.uint8).tobytes() # Add on dummy checksum, for a total of 258 bytes.
     return payload
 
 def main():
     # Generate a dummy test packet, and convert it to an array of 0 and 1.
     payload = generate_dummy_packet()
 
-    print("Input (hex): %s" % ("".join("{:02x}".format(ord(c)) for c in payload)))
+    print("Input (hex):" + codecs.encode(payload,'hex').decode())
 
     # Now run ldpc_encode over it X times.
     parity = ""
     start = time.time()
-    for x in xrange(1000):
+    for x in range(1000):
         #print(x)
         parity = ldpc_encode(payload)
 
     stop = time.time()
     print("time delta: %.3f" % (stop-start))
 
-    print("LDPC Parity Bits (hex): %s" % ("".join("{:02x}".format(ord(c)) for c in parity)))
+    print("LDPC Parity Bits (hex):" + codecs.encode(parity,'hex').decode())
     print("Done!")
 
 # Some basic test code.

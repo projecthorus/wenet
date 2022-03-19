@@ -17,7 +17,7 @@
 import os, glob
 
 # images should be named 1.jpg, 2.jpg, etc.
-image_numbers = xrange(1,14)
+image_numbers = range(1,14)
 new_sizes = ["800x608","640x480","320x240"]
 callsign = "VK5QI"
 
