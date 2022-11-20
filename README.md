@@ -12,7 +12,7 @@ The transmit side is designed to run on a Raspberry Pi, and the UART is used to 
 
 The receiver side makes used of Software Defined Radio (in particular, RTLSDR dongles), and a high performance FSK modem written by [David Rowe](http://rowetel.com/). Received images are available locally via a web interface, and are also uploaded to https://ssdv.habhub.org/ where packets contributed by many stations can be used to form a complete image live during a flight.
 
-Bench [testing](https://www.rowetel.com/?p=5080) has shown that for a receiver with a Noise Figure of 2dB (e.g. a RTLSDR with a separate low-noise preamplifier), a minimum detectable signal of ~-112 dBm is required for reliable reception of imagery. Reception at > 100km ranges is acheivable using a short yagi antenna (5 elements). The current reception range record is 330km, using a 9-element yagi antenna and a RTLSDR+Preamp.
+Bench [testing](https://www.rowetel.com/?p=5080) has shown that for a receiver with a Noise Figure of 2dB (e.g. a RTLSDR with a separate low-noise preamplifier), a minimum detectable signal of ~-112 dBm is required for reliable reception of imagery. Reception at > 100km ranges is acheivable using a short yagi antenna (5 elements). The current reception range record is 480km, using an 18-element yagi antenna and a RTLSDR+Preamp.
 
 
 ### Flight History
