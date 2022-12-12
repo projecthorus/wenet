@@ -441,7 +441,7 @@ def image_telemetry_decoder(packet):
         data = struct.unpack('>BH7pBHIBffffffBBBBBBBBBbfffffff', packet)
 
         image_data['sequence_number'] = data[1]
-        image_data['callsign'] = data[2]
+        image_data['callsign'] = data[2].decode()
         image_data['image_id'] = data[3]
         image_data['week']  = data[4]
         image_data['iTOW']  = data[5]/1000.0 # iTOW provided as milliseconds, convert to seconds.

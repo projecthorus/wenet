@@ -3,13 +3,14 @@
 #	SSDV Packet Receiver & Parser
 #	Decodes SSDV packets passed via stdin.
 #
-#	Copyright (C) 2018  Mark Jessop <vk5qi@rfhead.net>
+#	Copyright (C) 2022  Mark Jessop <vk5qi@rfhead.net>
 #	Released under GNU GPL v3 or later
 #
 #	Requires: ssdv (https://github.com/fsphil/ssdv)
 #
 
 import codecs
+import datetime
 import json
 import logging
 import os
@@ -20,9 +21,6 @@ import argparse
 import socket
 from WenetPackets import *
 
-# Check if we are running in Python 2 or 3
-PY3 = sys.version_info[0] == 3
-
 
 
 parser = argparse.ArgumentParser()
@@ -30,8 +28,10 @@ parser.add_argument("--hex", action="store_true", help="Take Hex strings as inpu
 parser.add_argument("--partialupdate", default=0, help="Push partial updates every N packets to GUI.")
 parser.add_argument("-v", "--verbose", action='store_true', default=False, help="Verbose output")
 parser.add_argument("--headless", action='store_true', default=False, help="Headless mode - broadcasts additional data via UDP.")
+parser.add_argument("--rximages", default="./rx_images/", help="Location to save RX images and telemetry to.")
 args = parser.parse_args()
 
+RX_IMAGES_DIR = args.rximages
 
 # Set up log output.
 if args.verbose:
@@ -42,6 +42,9 @@ else:
 logging.basicConfig(format='%(asctime)s %(levelname)s: %(message)s', level=log_level)
 logging.getLogger("requests").setLevel(logging.CRITICAL)
 logging.getLogger("urllib3").setLevel(logging.CRITICAL)
+
+
+LOG_FILENAME = os.path.join(args.rximages,datetime.datetime.utcnow().strftime("%Y%m%d-%H%MZ"))
 
 
 # GUI updates are only sent locally.
@@ -87,6 +90,54 @@ def broadcast_telemetry_packet(data, headless=False):
 		gui_socket.close()
 
 
+def log_telemetry_packet(packet):
+	global START_DATETIME
+
+	packet_type = decode_packet_type(packet)
+
+	if packet_type == WENET_PACKET_TYPES.IDLE:
+		return
+
+	elif packet_type == WENET_PACKET_TYPES.TEXT_MESSAGE:
+		decoded = decode_text_message(packet)
+
+		_log_f = open(LOG_FILENAME+"_text.log",'a')
+		_log_f.write(json.dumps(decoded)+"\n")
+		_log_f.close()
+
+	elif packet_type == WENET_PACKET_TYPES.SEC_PAYLOAD_TELEMETRY:
+		decoded = sec_payload_decode(packet)
+		# Convert payload (bytes) into a hexadecimal string so we can serialise it.
+		decoded['payload'] = codecs.encode(decoded['payload'],'hex').decode()
+
+		_log_f = open(LOG_FILENAME+"_secondary.log",'a')
+		_log_f.write(json.dumps(decoded)+"\n")
+		_log_f.close()
+
+	elif packet_type == WENET_PACKET_TYPES.GPS_TELEMETRY:
+		decoded = gps_telemetry_decoder(packet)
+
+		_log_f = open(LOG_FILENAME+"_gps.log",'a')
+		_log_f.write(json.dumps(decoded)+"\n")
+		_log_f.close()
+
+	elif packet_type == WENET_PACKET_TYPES.ORIENTATION_TELEMETRY:
+		decoded = orientation_telemetry_decoder(packet)
+
+		_log_f = open(LOG_FILENAME+"_orientation.log",'a')
+		_log_f.write(json.dumps(decoded)+"\n")
+		_log_f.close()
+
+	elif packet_type == WENET_PACKET_TYPES.IMAGE_TELEMETRY:
+		decoded = image_telemetry_decoder(packet)
+
+		_log_f = open(LOG_FILENAME+"_imagetelem.log",'a')
+		_log_f.write(json.dumps(decoded)+"\n")
+		_log_f.close()
+
+
+
+
 # State variables
 current_image = -1
 current_callsign = ""
@@ -108,92 +159,97 @@ while True:
 		data = codecs.decode(data, 'hex')
 	else:
 		# If we are receiving raw binary data via stdin, we need
-		# to use the buffer interface under Python 3, and the 'regular' interface
-		# under python t.
-		if PY3:
-			data = sys.stdin.buffer.read(256)
-		else:
-			data = sys.stdin.read(256)
+		# to use the buffer interface under Python 3.
+		data = sys.stdin.buffer.read(256)
 
-	packet_type = decode_packet_type(data)
+	try:
+		packet_type = decode_packet_type(data)
 
-
-	if packet_type == WENET_PACKET_TYPES.IDLE:
-		continue
-	elif packet_type == WENET_PACKET_TYPES.TEXT_MESSAGE:
-		broadcast_telemetry_packet(data, args.headless)
-		logging.info(packet_to_string(data))
-
-	elif packet_type == WENET_PACKET_TYPES.SEC_PAYLOAD_TELEMETRY:
-		broadcast_telemetry_packet(data)
-		logging.info(packet_to_string(data))
-
-	elif packet_type == WENET_PACKET_TYPES.GPS_TELEMETRY:
-		broadcast_telemetry_packet(data, args.headless)
-		logging.info(packet_to_string(data))
-
-	elif packet_type == WENET_PACKET_TYPES.ORIENTATION_TELEMETRY:
-		broadcast_telemetry_packet(data)
-		logging.info(packet_to_string(data))
-
-	elif packet_type == WENET_PACKET_TYPES.IMAGE_TELEMETRY:
-		broadcast_telemetry_packet(data)
-		logging.info(packet_to_string(data))
-
-	elif packet_type == WENET_PACKET_TYPES.SSDV:
-
-		# Extract packet information.
-		packet_info = ssdv_packet_info(data)
-		packet_as_string = ssdv_packet_string(data)
-
-		# Only proceed if there are no decode errors.
-		if packet_info['error'] != 'None':
-			logging.error(message['error'])
+		if packet_type == WENET_PACKET_TYPES.IDLE:
 			continue
+		elif packet_type == WENET_PACKET_TYPES.TEXT_MESSAGE:
+			broadcast_telemetry_packet(data, args.headless)
+			logging.info(packet_to_string(data))
+			log_telemetry_packet(data)
 
-		if (packet_info['image_id'] != current_image) or (packet_info['callsign'] != current_callsign) :
-			# Attempt to decode current image if we have enough packets.
-			logging.info("New image - ID #%d" % packet_info['image_id'])
-			if current_packet_count > 0:
-				# Attempt to decode current image, and write out to a file.
-				temp_f.close()
-				# Run SSDV
-				returncode = os.system("ssdv -d rxtemp.bin ./rx_images/%s_%s_%d.jpg 2>/dev/null > /dev/null" % (current_packet_time,current_callsign,current_image))
-				if returncode == 1:
-					logging.error("ERROR: SSDV Decode failed!")
+		elif packet_type == WENET_PACKET_TYPES.SEC_PAYLOAD_TELEMETRY:
+			broadcast_telemetry_packet(data)
+			logging.info(packet_to_string(data))
+			log_telemetry_packet(data)
+
+		elif packet_type == WENET_PACKET_TYPES.GPS_TELEMETRY:
+			broadcast_telemetry_packet(data, args.headless)
+			logging.info(packet_to_string(data))
+			log_telemetry_packet(data)
+
+		elif packet_type == WENET_PACKET_TYPES.ORIENTATION_TELEMETRY:
+			broadcast_telemetry_packet(data, args.headless)
+			logging.info(packet_to_string(data))
+			log_telemetry_packet(data)
+
+		elif packet_type == WENET_PACKET_TYPES.IMAGE_TELEMETRY:
+			broadcast_telemetry_packet(data, args.headless)
+			logging.info(packet_to_string(data))
+			log_telemetry_packet(data)
+
+		elif packet_type == WENET_PACKET_TYPES.SSDV:
+
+			# Extract packet information.
+			packet_info = ssdv_packet_info(data)
+			packet_as_string = ssdv_packet_string(data)
+
+			# Only proceed if there are no decode errors.
+			if packet_info['error'] != 'None':
+				logging.error(message['error'])
+				continue
+
+			if (packet_info['image_id'] != current_image) or (packet_info['callsign'] != current_callsign) :
+				# Attempt to decode current image if we have enough packets.
+				logging.info("New image - ID #%d" % packet_info['image_id'])
+				if current_packet_count > 0:
+					# Attempt to decode current image, and write out to a file.
+					temp_f.close()
+					# Run SSDV
+					_dessdv_filename = os.path.join(RX_IMAGES_DIR,f"{current_packet_time}_{current_callsign}_{current_image}")
+					returncode = os.system(f"ssdv -d rxtemp.bin {_dessdv_filename}.jpg 2>/dev/null > /dev/null")
+					if returncode == 1:
+						logging.error("ERROR: SSDV Decode failed!")
+					else:
+						logging.debug("SSDV Decoded OK!")
+						# Make a copy of the raw binary data.
+						os.system(f"mv rxtemp.bin {_dessdv_filename}.bin")
+
+						# Update live displays here.
+						trigger_gui_update(os.path.abspath(_dessdv_filename+".jpg"), packet_as_string)
+
+						# Trigger upload to habhub here.
 				else:
-					logging.debug("SSDV Decoded OK!")
-					# Make a copy of the raw binary data.
-					os.system("mv rxtemp.bin ./rx_images/%s_%s_%d.bin" % (current_packet_time,current_callsign,current_image))
+					logging.debug("Not enough packets to decode previous image.")
 
-					# Update live displays here.
-					trigger_gui_update(os.path.abspath("./rx_images/%s_%s_%d.jpg" % (current_packet_time,current_callsign,current_image)), packet_as_string)
+				# Now set up for the new image.
+				current_image = packet_info['image_id']
+				current_callsign = packet_info['callsign']
+				current_packet_count = 1
+				current_packet_time = datetime.datetime.utcnow().strftime("%Y%m%d-%H%M%SZ")
+				# Open file and write in first packet.
+				temp_f = open("rxtemp.bin" , "wb")
+				temp_f.write(data)
 
-					# Trigger upload to habhub here.
 			else:
-				logging.debug("Not enough packets to decode previous image.")
+				# Write current packet into temp file.
+				temp_f.write(data)
+				current_packet_count += 1
 
-			# Now set up for the new image.
-			current_image = packet_info['image_id']
-			current_callsign = packet_info['callsign']
-			current_packet_count = 1
-			current_packet_time = datetime.datetime.utcnow().strftime("%Y%m%d-%H%M%SZ")
-			# Open file and write in first packet.
-			temp_f = open("rxtemp.bin" , "wb")
-			temp_f.write(data)
-
+				if args.partialupdate != 0:
+					if current_packet_count % int(args.partialupdate) == 0:
+						# Run the SSDV decoder and push a partial update to the GUI.
+						temp_f.flush()
+						returncode = os.system("ssdv -d rxtemp.bin rxtemp.jpg 2>/dev/null > /dev/null")
+						if returncode == 0:
+							logging.debug("Wrote out partial update of image ID #%d" % current_image)
+							trigger_gui_update(os.path.abspath("rxtemp.jpg"), packet_as_string)
 		else:
-			# Write current packet into temp file.
-			temp_f.write(data)
-			current_packet_count += 1
-
-			if args.partialupdate != 0:
-				if current_packet_count % int(args.partialupdate) == 0:
-					# Run the SSDV decoder and push a partial update to the GUI.
-					temp_f.flush()
-					returncode = os.system("ssdv -d rxtemp.bin rxtemp.jpg 2>/dev/null > /dev/null")
-					if returncode == 0:
-						logging.debug("Wrote out partial update of image ID #%d" % current_image)
-						trigger_gui_update(os.path.abspath("rxtemp.jpg"), packet_as_string)
-	else:
-		logging.debug("Unknown Packet Format.")
+			logging.debug("Unknown Packet Format.")
+	
+	except Exception as e:
+		logging.error("Error handling packet - " + str(e))

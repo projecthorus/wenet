@@ -62,10 +62,18 @@ body {
 
 .gps-display {
   padding: .25rem 0;
-  font-weight: 600;
+  font-weight: 400;
   color: rgba(255, 255, 255, .8);
   background-color: transparent;
   float: right;
+}
+
+.orientation-display {
+  padding: .25rem 0;
+  font-weight: 400;
+  color: rgba(255, 255, 255, .8);
+  background-color: transparent;
+  float: left;
 }
 
 @media (min-width: 48em) {
@@ -82,4 +90,22 @@ body {
  */
 .mastfoot {
   color: rgba(255, 255, 255, .5);
+}
+
+
+/*
+ * FFT plot
+ */
+#fft_plot .c3-circles-Spectra {
+  display: none;
+}
+
+#fft_plot .c3-target-Peaks {
+  fill: #ff7f0e;
+  stroke: #ff7f0e;
+}
+
+#fft_plot .c3-tooltip-container {
+  width: 200px;
+  color: black;
 }

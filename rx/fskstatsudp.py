@@ -31,7 +31,10 @@ class FSKDemodStats(object):
     def __init__(self,
         averaging_time = 5.0,
         peak_hold = False,
-        decoder_id = ""
+        decoder_id = "",
+        freq = 441200000,
+        sample_rate = 921416,
+        real = False
         ):
         """
 
@@ -45,6 +48,9 @@ class FSKDemodStats(object):
         self.averaging_time = float(averaging_time)
         self.peak_hold = peak_hold
         self.decoder_id = str(decoder_id)
+        self.freq = freq
+        self.sample_rate = sample_rate
+        self.real = real
 
         # Input data stores.
         self.in_times = np.array([])
@@ -56,6 +62,8 @@ class FSKDemodStats(object):
         self.snr = -999.0
         self.fest = [0.0,0.0]
         self.fft = []
+        self.fft_db = []
+        self.fft_freq = []
         self.ppm = 0.0
 
 
@@ -97,9 +105,17 @@ class FSKDemodStats(object):
 
         # Now we can process the data.
         _time = time.time()
-        self.fft = _data['samp_fft']
+        self.fft = np.array(_data['samp_fft'])
         self.fest[0] = _data['f1_est']
         self.fest[1] = _data['f2_est']
+
+        #self.fft = self.fft[self.fft>0.0]
+
+        try:
+            self.fft_db = list(np.around(10*np.log10(self.fft+0.000000001),1))
+            self.fft_freq = list(np.around(np.linspace(0, self.sample_rate/2, len(self.fft)) + self.freq, 1))
+        except:
+            pass
 
         # Time-series data
         self.in_times = np.append(self.in_times, _time)
@@ -164,11 +180,14 @@ if __name__ == "__main__":
     # Command line arguments.
     parser = argparse.ArgumentParser()
     parser.add_argument("--rate", default=2, type=int, help="Update Rate (Hz)")
+    parser.add_argument("--freq", default=441200000, type=float, help="IQ Centre Frequency (Hz)")
+    parser.add_argument("--samplerate", default=921416, type=float, help="Sample rate (Hz)")
+    parser.add_argument("--real", default=False, action="store_true", help="Real Samples (not IQ)")
     args = parser.parse_args()
 
     _averaging_time = 1.0/args.rate
 
-    stats_parser = FSKDemodStats(averaging_time=_averaging_time, peak_hold=True)
+    stats_parser = FSKDemodStats(averaging_time=_averaging_time, peak_hold=True, freq=args.freq, sample_rate=args.samplerate, real=args.real)
 
 
     _last_update_time = time.time()
@@ -189,8 +208,11 @@ if __name__ == "__main__":
                 _stats = {
                     'snr': stats_parser.snr,
                     'ppm': stats_parser.ppm,
-                    'fft': stats_parser.fft,
-                    'fest': stats_parser.fest
+                    #'fft': stats_parser.fft,
+                    'fft_db': stats_parser.fft_db,
+                    'fft_freq': stats_parser.fft_freq,
+                    'fest': stats_parser.fest,
+                    'freq': stats_parser.freq
                 }
 
                 send_modem_stats(_stats)

@@ -119,6 +119,19 @@ def handle_telemetry(packet):
         text_data = decode_text_message(packet)
         if text_data['error'] == 'None':
             flask_emit_event('text_update', data=text_data)
+
+    elif packet_type == WENET_PACKET_TYPES.ORIENTATION_TELEMETRY:
+        # Orientation data from the payload
+        orientation_data = orientation_telemetry_decoder(packet)
+        if orientation_data['error'] == 'None':
+            flask_emit_event('orientation_update', data=orientation_data)
+
+    elif packet_type == WENET_PACKET_TYPES.IMAGE_TELEMETRY:
+        # image data from the payload
+        image_data = image_telemetry_decoder(packet)
+        if image_data['error'] == 'None':
+            flask_emit_event('image_telem_update', data=image_data)
+
     else:
         # Discard any other packet type.
         pass
@@ -164,7 +177,7 @@ def udp_rx_thread():
     udp_listener_running = True
     while udp_listener_running:
         try:
-            m = s.recvfrom(2048)
+            m = s.recvfrom(8192)
         except socket.timeout:
             m = None
         
@@ -196,6 +209,10 @@ if __name__ == "__main__":
 
     logging.basicConfig(format='%(asctime)s %(levelname)s: %(message)s', level=log_level)
 
+    logging.getLogger("werkzeug").setLevel(logging.ERROR)
+    logging.getLogger("socketio").setLevel(logging.ERROR)
+    logging.getLogger("engineio").setLevel(logging.ERROR)
+    logging.getLogger("geventwebsocket").setLevel(logging.ERROR)
 
     t = Thread(target=udp_rx_thread)
     t.start()

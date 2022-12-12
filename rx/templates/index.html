@@ -6,8 +6,12 @@
 
     <link href="{{ url_for('static', filename='css/bootstrap.min.css') }}" rel="stylesheet">
     <link href="{{ url_for('static', filename='css/wenet.css') }}" rel="stylesheet">
+    <link href="{{ url_for('static', filename='css/c3.min.css') }}" rel="stylesheet">
     <script src="{{ url_for('static', filename='js/jquery-3.3.1.min.js')}}"></script>
     <script src="{{ url_for('static', filename='js/socket.io-4.1.2.min.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/c3.min.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/d3.min.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/fft_plot.js') }}"></script>
     <script type="text/javascript" charset="utf-8">
 
 
@@ -20,6 +24,7 @@
             //     http[s]://<domain>:<port>[/<namespace>]
             var socket = io.connect(location.protocol + '//' + document.domain + ':' + location.port + namespace);
 
+            setup_fft_plot();
 
             // Handle an image update.
             socket.on('image_update', function(msg) {
@@ -44,6 +49,29 @@
 
                 var _new_desc = "SNR: " + snr + " dB"
                 $('#snr-data').html(_new_desc);
+
+                // Update the Spectra data.
+                scan_chart_spectra.columns[0] = ['x_spectra'].concat(msg.fft_freq);
+                scan_chart_spectra.columns[1] = ['Spectra'].concat(msg.fft_db);
+
+                scan_chart_obj.load(scan_chart_spectra);
+
+                var max_fft_level = Math.max(...msg.fft_db);
+                
+                // Update the Frequency Estimate data.
+                scan_chart_peaks.columns[0] = ['x_fest'].concat([msg.fest[0]+msg.freq, msg.fest[1]+msg.freq]);
+                scan_chart_peaks.columns[1] = ['Tone Estimates'].concat([max_fft_level,max_fft_level]);
+                scan_chart_obj.load(scan_chart_peaks);
+
+                // Set the chart axes
+                scan_chart_obj.axis.max({'y':max_fft_level});
+                scan_chart_obj.axis.min({'y':max_fft_level-20});
+
+                // Ensure colors are set correctly.
+                $('.c3-axis-y').css('fill', 'white')
+                $('.c3-axis-x').css('fill', 'white')
+                $('.c3-legend-item text').css('fill', 'white')
+
             });
 
             socket.on('gps_update', function(msg) {
@@ -62,12 +90,110 @@
                 }
             });
 
+            socket.on('orientation_update', function(msg) {
+
+                //console.log(msg);
+                // {
+                //     "week": 2240,
+                //     "iTOW": 8220,
+                //     "leapS": 18,
+                //     "timestamp": "2022-12-11T02:16:42",
+                //     "sys_status": 5,
+                //     "sys_error": 0,
+                //     "sys_cal": 0,
+                //     "gyro_cal": 3,
+                //     "accel_cal": 1,
+                //     "magnet_cal": 0,
+                //     "temp": 29,
+                //     "euler_heading": 1.5,
+                //     "euler_roll": 1.125,
+                //     "euler_pitch": 8.125,
+                //     "quaternion_x": -0.0714111328125,
+                //     "quaternion_y": -0.00933837890625,
+                //     "quaternion_z": -0.01348876953125,
+                //     "quaternion_w": 0.997314453125,
+                //     "error": "None"
+                // }
+
+                if(msg.sys_cal==3){
+                    var sys_cal = "OK";
+                } else {
+                    var sys_cal = "Uncal (S" + msg.sys_cal.toFixed(0) + " G" + msg.gyro_cal.toFixed(0) + " A" + msg.accel_cal.toFixed(0) + " M" + msg.magnet_cal.toFixed(0) + ")";
+                }
+
+                var heading = msg.euler_heading.toFixed(1);
+                var roll = msg.euler_roll.toFixed(1);
+                var pitch = msg.euler_pitch.toFixed(1)
+
+                var _ori_desc = "Heading " + heading + "˚ Roll " + roll + "˚ Pitch " + pitch + "˚ Cal: " + sys_cal;
+                $('#orientation-data').html(_ori_desc);
+
+            });
+
+            socket.on('image_telem_update', function(msg) {
+
+                console.log(msg);
+                // {
+                //     "week": 2240,
+                //     "iTOW": 8220,
+                //     "leapS": 18,
+                //     "timestamp": "2022-12-11T02:16:42",
+                //     "sys_status": 5,
+                //     "sys_error": 0,
+                //     "sys_cal": 0,
+                //     "gyro_cal": 3,
+                //     "accel_cal": 1,
+                //     "magnet_cal": 0,
+                //     "temp": 29,
+                //     "euler_heading": 1.5,
+                //     "euler_roll": 1.125,
+                //     "euler_pitch": 8.125,
+                //     "quaternion_x": -0.0714111328125,
+                //     "quaternion_y": -0.00933837890625,
+                //     "quaternion_z": -0.01348876953125,
+                //     "quaternion_w": 0.997314453125,
+                //     "error": "None"
+                // }
+
+                _img_number = msg.image_id.toFixed(0);
+                _timestamp = msg.timestamp;
+
+                if (msg.numSV < 3){
+                    _gps_desc = "No GPS Lock";
+                } else {
+
+                    var lat = msg.latitude.toFixed(5);
+                    var lon = msg.longitude.toFixed(5);
+                    var alt = msg.altitude.toFixed(0);
+                    var ascent = msg.ascent_rate.toFixed(1);
+
+                    var _gps_desc = lat + ", " + lon + " " + alt + "m " + ascent + " m/s"
+                }
+
+                if(msg.sys_cal==3){
+                    var sys_cal = "OK";
+                } else {
+                    var sys_cal = "Uncal (S" + msg.sys_cal.toFixed(0) + " G" + msg.gyro_cal.toFixed(0) + " A" + msg.accel_cal.toFixed(0) + " M" + msg.magnet_cal.toFixed(0) + ")";
+                }
+
+                var heading = msg.euler_heading.toFixed(1);
+                var roll = msg.euler_roll.toFixed(1);
+                var pitch = msg.euler_pitch.toFixed(1)
+
+                var _ori_desc = "Heading " + heading + "˚ Roll " + roll + "˚ Pitch " + pitch + "˚ Cal: " + sys_cal;
+
+                var _image_telem_desc = "Img Number: " + _img_number + " Time: " + _timestamp + " " + _gps_desc + " " + _ori_desc;
+
+                $('#image_telem_data').html(_image_telem_desc);
+
+            });
+
             var text_messages = [];
 
             socket.on('text_update', function(msg) {
                 var _text = "Msg #" + msg.id + ": " + msg.text;
                 text_messages.push(_text);
-                if(text_messages.length > 6){
+                if(text_messages.length > 10){
                     text_messages.shift();
                 }
 
@@ -90,15 +216,21 @@
 <body>
     <div class="container-fluid">
         <div class="row">
-            <div class="col-4">
+            <div class="col-10">
                 <h3 class="masthead-brand">Wenet Dashboard</h3>
-            </div>
-            <div class="col-6">
-                <h5 class="gps-display" id="gps-data"></h5>
             </div>
             <div class="col-2">
                 <h4 class="snr-display" id="snr-data">SNR: 0 dB</h4>
             </div>
+        </div>
+        <div class="row">
+            <div class="col-6">
+                <h5 class="orientation-display" id="orientation-data"></h5>
+            </div>
+            <div class="col-6">
+                <h5 class="gps-display" id="gps-data"></h5>
+            </div>
+
         </div>
         <div class="row">
             <div class="col-12">
@@ -115,7 +247,27 @@
         </div>
         <div class="row">
             <div class='col-12'>
+                <div id="image_telem_data"></div>
+            </div>
+        </div>
+        <div class="row">
+            <div class='col-12'>
+                <h5>Log Messages</h5>
+            </div>
+        </div>
+        <div class="row">
+            <div class='col-12'>
                 <div id="log_data">No log messages received yet.</div>
+            </div>
+        </div>
+        <div class="row">
+            <div class='col-12'>
+                <h5>Spectrum Plot</h5>
+            </div>
+        </div>
+        <div class="row">
+            <div class='col-12'>
+                <div id="fft_plot"></div>
             </div>
         </div>
     </div>

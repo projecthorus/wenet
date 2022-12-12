@@ -1,7 +1,7 @@
 #!/bin/bash
 #
 #	Wenet RX-side Initialisation Script - HEADLESS DOCKER VERSION
-#	2019 Mark Jessop <vk5qi@rfhead.net>
+#	2022 Mark Jessop <vk5qi@rfhead.net>
 #
 #	This code mostly assumes an RTLSDR will be used for RX.
 #
@@ -52,7 +52,7 @@ fi
 # Start up the receive chain.
 echo "Using Complex Samples."
 rtl_sdr -d "$DEVICE" -s "$SDR_RATE" -f "$RX_SSB_FREQ" -g "$GAIN" - | \
-./fsk_demod --cu8 -s --stats=100 2 "$SDR_RATE" "$BAUD_RATE" - - 2> >(python3 fskstatsudp.py --rate 1) | \
+./fsk_demod --cu8 -s --stats=100 2 "$SDR_RATE" "$BAUD_RATE" - - 2> >(python3 fskstatsudp.py --rate 1 --freq $RX_SSB_FREQ --samplerate $SDR_RATE) | \
 ./drs232_ldpc - -  -vv 2> /dev/null | \
 python3 rx_ssdv.py --partialupdate 16 --headless
 

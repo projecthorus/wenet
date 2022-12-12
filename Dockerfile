@@ -11,6 +11,7 @@ RUN apt-get update && \
     git \
     libusb-1.0-0-dev \
     pkg-config \
+    libatlas-base \
     python3 \
     python3-dev \
     python3-pip \

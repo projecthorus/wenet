@@ -126,7 +126,7 @@ if [ "$RX_FLOW" = "IQ" ]; then
     echo "Using Complex Samples."
 
 	rtl_sdr -s $SDR_RATE -f $RX_SSB_FREQ -g $GAIN - | \
-	./fsk_demod --cu8 -s --stats=100 2 $SDR_RATE $BAUD_RATE - - 2> >(python fskstatsudp.py --rate 1) | \
+	./fsk_demod --cu8 -s --stats=100 2 $SDR_RATE $BAUD_RATE - - 2> >(python fskstatsudp.py --rate 1 --freq $RX_SSB_FREQ --samplerate $SDR_RATE) | \
 	./drs232_ldpc - -  -vv 2> /dev/null | \
 	python rx_ssdv.py --partialupdate 16 --headless
 elif [ "$RX_FLOW" = "GQRX" ]; then
@@ -136,7 +136,7 @@ elif [ "$RX_FLOW" = "GQRX" ]; then
 	# Might need to try: nc -l -u -p 7355 localhost
 	echo "Receiving samples from GQRX on UDP:localhost:7355"
 	nc -l -u localhost 7355 | \
-	./fsk_demod -s --stats=100 -b 1 -u 23500 2 48000 $BAUD_RATE - - 2> >(python fskstatsudp.py --rate 1) | \
+	./fsk_demod -s --stats=100 -b 1 -u 23500 2 48000 $BAUD_RATE - - 2> >(python fskstatsudp.py --rate 1 --freq $RX_SSB_FREQ --samplerate $SDR_RATE --real) | \
 	./drs232_ldpc - -  -vv 2> /dev/null | \
 	python rx_ssdv.py --partialupdate 4 --headless
 else
@@ -147,7 +147,7 @@ else
 	rtl_sdr -s $SDR_RATE -f $RX_SSB_FREQ -g $GAIN - | csdr convert_u8_f | \
 	csdr bandpass_fir_fft_cc 0.05 0.45 0.05 | csdr realpart_cf | \
 	csdr gain_ff 0.5 | csdr convert_f_s16 | \
-	./fsk_demod -s --stats=100 2 $SDR_RATE $BAUD_RATE - - 2> >(python fskstatsudp.py --rate 1) | \
+	./fsk_demod -s --stats=100 2 $SDR_RATE $BAUD_RATE - - 2> >(python fskstatsudp.py --rate 1 --freq $RX_SSB_FREQ --samplerate $SDR_RATE --real) | \
 	./drs232_ldpc - -  -vv 2> /dev/null | \
 	python rx_ssdv.py --partialupdate 16 --headless
 
