@@ -11,11 +11,12 @@ RUN apt-get update && \
     git \
     libusb-1.0-0-dev \
     pkg-config \
-    libatlas-base \
+    libatlas-base-dev \
     python3 \
     python3-dev \
     python3-pip \
     python3-setuptools \
+    python3-numpy \
     python3-wheel && \
   rm -rf /var/lib/apt/lists/*
 
@@ -36,13 +37,14 @@ RUN git clone https://github.com/fsphil/ssdv.git /root/ssdv && \
   rm -rf /root/ssdv
 
 # Install Python packages.
+# Removed numpy from this list, using system packages.
+# --no-binary numpy
 RUN --mount=type=cache,target=/root/.cache/pip pip3 install \
-  --user --no-warn-script-location --ignore-installed --no-binary numpy \
+  --user --no-warn-script-location --ignore-installed \
     crcmod \
     flask \
     flask-socketio \
-    requests \
-    numpy
+    requests 
 
 # Copy in radiosonde_auto_rx.
 COPY . /root/wenet
