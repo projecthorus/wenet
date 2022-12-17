@@ -7,13 +7,31 @@
 #
 #	PiCamera API: https://picamera.readthedocs.io/en/release-1.12/api_camera.html
 
-from picamera import PiCamera
+import picamera
+from picamera import mmal 
+import ctypes as ct
 from time import sleep
 from threading import Thread
 import glob
 import os
 import datetime
 import traceback
+
+
+class PiCamera2(picamera.PiCamera):
+    AWB_MODES = {
+        'off':           mmal.MMAL_PARAM_AWBMODE_OFF,
+        'auto':          mmal.MMAL_PARAM_AWBMODE_AUTO,
+        'sunlight':      mmal.MMAL_PARAM_AWBMODE_SUNLIGHT,
+        'cloudy':        mmal.MMAL_PARAM_AWBMODE_CLOUDY,
+        'shade':         mmal.MMAL_PARAM_AWBMODE_SHADE,
+        'tungsten':      mmal.MMAL_PARAM_AWBMODE_TUNGSTEN,
+        'fluorescent':   mmal.MMAL_PARAM_AWBMODE_FLUORESCENT,
+        'incandescent':  mmal.MMAL_PARAM_AWBMODE_INCANDESCENT,
+        'flash':         mmal.MMAL_PARAM_AWBMODE_FLASH,
+        'horizon':       mmal.MMAL_PARAM_AWBMODE_HORIZON,
+        'greyworld':     ct.c_uint32(10)
+        }
 
 
 class WenetPiCam(object):
@@ -34,6 +52,7 @@ class WenetPiCam(object):
 				image_delay=0.5, 
 				vertical_flip = False, 
 				horizontal_flip = False,
+				greyworld = False,
 				temp_filename_prefix = 'picam_temp',
 				debug_ptr = None
 				):
@@ -73,13 +92,14 @@ class WenetPiCam(object):
 		self.src_resolution = src_resolution
 		self.horizontal_flip = horizontal_flip
 		self.vertical_flip = vertical_flip
+		self.greyworld = greyworld
 
 		self.init_camera()
 
 
 	def init_camera(self):
 		# Attempt to start picam.
-		self.cam = PiCamera()
+		self.cam = PiCamera2()
 
 		# Configure camera.
 		try:
@@ -90,7 +110,10 @@ class WenetPiCam(object):
 		self.cam.hflip = self.horizontal_flip
 		self.cam.vflip = self.vertical_flip
 		self.cam.exposure_mode = 'auto'
-		self.cam.awb_mode = 'sunlight' # Fixed white balance compensation. 
+		if self.greyworld:
+			self.cam.awb_mode = 'greyworld' # 'Greyworld' white balance, for NIR imagery.
+		else:
+			self.cam.awb_mode = 'sunlight' # Fixed white balance compensation. 
 		self.cam.meter_mode = 'matrix'
 
 		# Start the 'preview' mode, effectively opening the 'shutter'.

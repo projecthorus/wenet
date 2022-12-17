@@ -218,7 +218,7 @@ if __name__ == "__main__":
     t.start()
 
     # Run the Flask app, which will block until CTRL-C'd.
-    socketio.run(app, host='0.0.0.0', port=args.listen_port)
+    socketio.run(app, host='0.0.0.0', port=args.listen_port, allow_unsafe_werkzeug=True)
 
     udp_listener_running = False
 

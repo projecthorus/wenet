@@ -46,7 +46,7 @@ RUN --mount=type=cache,target=/root/.cache/pip pip3 install \
     flask-socketio \
     requests 
 
-# Copy in radiosonde_auto_rx.
+# Copy in wenet.
 COPY . /root/wenet
 
 # Build the binaries.
@@ -66,6 +66,7 @@ RUN apt-get update && \
   bc \
   libusb-1.0-0 \
   python3 \
+  python3-numpy \
   tini && \
   rm -rf /var/lib/apt/lists/*
 

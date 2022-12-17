@@ -369,7 +369,7 @@ class PacketTX(object):
             image_packet = struct.pack(">BH7pBHIBffffffBBBBBBBBBbfffffff",
                 0x54,   # Packet ID for the GPS Telemetry Packet.
                 self.image_telem_count,
-                callsign,
+                callsign.encode(),
                 image_id,
                 gps_data['week'],
                 int(gps_data['iTOW']*1000), # Convert the GPS week value to milliseconds, and cast to an int.

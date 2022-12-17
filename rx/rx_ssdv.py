@@ -19,6 +19,7 @@ import sys
 import datetime
 import argparse
 import socket
+import traceback
 from WenetPackets import *
 
 
@@ -161,6 +162,10 @@ while True:
 		# If we are receiving raw binary data via stdin, we need
 		# to use the buffer interface under Python 3.
 		data = sys.stdin.buffer.read(256)
+
+		# if data == '':
+		# 	logging.critical("Caught EOF. Exiting.")
+		# 	sys.exit(1)
 
 	try:
 		packet_type = decode_packet_type(data)
