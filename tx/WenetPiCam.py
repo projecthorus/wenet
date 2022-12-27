@@ -15,6 +15,7 @@ from threading import Thread
 import glob
 import os
 import datetime
+import time
 import traceback
 
 
@@ -149,10 +150,11 @@ class WenetPiCam(object):
 			# Wrap this in error handling in case we lose the camera for some reason.
 			try:
 				self.cam.capture("%s_%d.jpg" % (self.temp_filename_prefix,i), quality=quality, bayer=bayer)
+				print(f"Image captured: {time.time()}")
 				if self.image_delay > 0:
 					sleep(self.image_delay)
 			except Exception as e: # TODO: Narrow this down...
-				self.debug_message("ERROR: %s" % str(e))
+				self.debug_message("Capture Error: %s" % str(e))
 				# Immediately return false. Not much point continuing to try and capture images.
 				return False
 
