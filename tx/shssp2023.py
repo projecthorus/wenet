@@ -54,6 +54,9 @@ global_callsign = "VK5QI"
 # Image capture directory
 image_dir = "./tx_images/"
 
+# Logo
+logo_file = None
+
 # Log files.
 text_telemetry_log = "ssp1_text.log"
 imu_log = "ssp1_imu.log"
@@ -91,13 +94,20 @@ gps_time_fix = False
 # We need to set the system time at least once manually (using timedatectl), before NTPD can take over.
 system_time_set = False
 
+# Maximum altitude reached.
+max_altitude = 0
+
 def handle_gps_data(gps_data):
 	""" Handle GPS data passed to us from a UBloxGPS instance """
-	global tx, bno, gps_time_fix, system_time_set
+	global tx, bno, gps_time_fix, system_time_set, max_altitude
 
 	# Latch gps_time_fix if Fix is OK.
 	if gps_data['gpsFix'] > 0:
 		gps_time_fix = True
+
+	# If we have GPS fix, update the max altitude field.
+	if (gps_data['altitude'] > max_altitude) and (gps_data['gpsFix'] == 3):
+		max_altitude = gps_data['altitude']
 
 	# Grab a snapshot of orientation data.
 	orientation_data = bno.read_state()
@@ -122,6 +132,80 @@ def handle_gps_data(gps_data):
 	# Now transmit an orientation telemetry packet.
 	tx.transmit_orientation_telemetry(gps_data['week'], gps_data['iTOW'], gps_data['leapS'], orientation_data)
 
+
+# Define our post-processing callback function, which gets called by WenetPiCam
+# after an image has been captured.
+def post_process_image(filename):
+	""" Post-process the image, adding on Logo overlay and GPS data if requested. """
+	global gps, bno, max_altitude, logo_file, tx
+
+	# Try and grab current GPS data snapshot
+	try:
+		if gps != None:
+			gps_state = gps.read_state()
+
+			# Format time
+			short_time = gps_state['datetime'].strftime("%Y-%m-%d %H:%M:%S")
+
+			# Construct string which we will add onto the image.
+			if gps_state['numSV'] < 3:
+				# If we don't have enough sats for a lock, don't display any data.
+				# TODO: Use the GPS fix status values here instead.
+				gps_string = "No GPS Lock "
+			else:
+				gps_string = "%s Lat: %.5f Lon: %.5f Alt: %dm (%dm) Speed: H %03.1f kph  V %02.1f m/s" % (
+					short_time,
+					gps_state['latitude'],
+					gps_state['longitude'],
+					int(gps_state['altitude']),
+					int(max_altitude),
+					gps_state['ground_speed'],
+					gps_state['ascent_rate'])
+		else:
+			gps_string = ""
+	except:
+		error_str = traceback.format_exc()
+		tx.transmit_text_message("GPS Data Access Failed: %s" % error_str)
+		gps_string = ""
+
+	try:
+		if bno != None:
+			orientation = bno.read_state()
+
+			if (orientation['sys_cal'] == 3):
+				bno_string = "  Heading: %.1f˚ Pitch: %.1f˚ Roll: %.1f˚" % (
+					orientation['euler_heading'],
+					orientation['euler_pitch'],
+					orientation['euler_roll']
+				)
+			else:
+				bno_string = ""
+		else:
+			bno_string = ""
+
+	except:
+		error_str = traceback.format_exc()
+		tx.transmit_text_message("BNO Data Access Failed: %s" % error_str)
+		bno_string = ""		
+
+	overlay_string = gps_string + bno_string
+
+	# Build up our imagemagick 'convert' command line
+	overlay_str = "convert %s -gamma 0.8 -font Helvetica -pointsize 30 -gravity North " % filename 
+	overlay_str += "-strokewidth 2 -stroke '#000C' -annotate +0+5 \"%s\" " % overlay_string
+	overlay_str += "-stroke none -fill white -annotate +0+5 \"%s\" " % overlay_string
+	# Add on logo overlay argument if we have been given one.
+	if logo_file is not None:
+		overlay_str += "%s -gravity SouthEast -composite " % logo_file
+
+	overlay_str += filename
+
+	print(overlay_str)
+
+	tx.transmit_text_message("Adding overlays to image.")
+	os.system(overlay_str)
+
+	return
 
 # Try and start up the GPS rx thread.
 # Note: The UBloxGPS constructor will continuously loop until it finds a GPS unit to connect to.
@@ -198,6 +282,14 @@ while True:
 				capture_time,
 				"GPS" if gps_time_fix else "System")
 			)
+
+			# Post-Process Image
+			try:
+				tx.transmit_text_message("Running Image Post-Processing")
+				post_process_image(vis_capture_filename)
+			except:
+				error_str = traceback.format_exc()
+				tx.transmit_text_message("Image Post-Processing Failed: %s" % error_str)
 
 			# Convert image to SSDV
 			picam_ssdv_filename = picam.ssdvify(vis_capture_filename, image_id = image_id)

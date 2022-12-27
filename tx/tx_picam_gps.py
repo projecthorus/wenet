@@ -131,7 +131,7 @@ def post_process_image(filename):
 			gps_string = ""
 	except:
 		error_str = traceback.format_exc()
-		self.debug_message("GPS Data Access Failed: %s" % error_str)
+		tx.transmit_text_message("GPS Data Access Failed: %s" % error_str)
 		gps_string = ""
 
 	# Build up our imagemagick 'convert' command line

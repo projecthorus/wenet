@@ -821,6 +821,16 @@ class WenetBNO055(object):
                 success = self.bno.begin(reset=reset)
                 if success:
                     self.debug_message("Connected to BNO055!")
+                    # Set axis remap settings so that UP on the camera image aligns with the heading.
+                    # This is specific to the SHSSP2023 payload, and may need to be changed for other payloads.
+                    self.bno.set_axis_remap(
+                        AXIS_REMAP_Y, 
+                        AXIS_REMAP_X, 
+                        AXIS_REMAP_Z,
+                        x_sign=AXIS_REMAP_NEGATIVE, 
+                        y_sign=AXIS_REMAP_POSITIVE,
+                        z_sign=AXIS_REMAP_POSITIVE)
+                    self.debug_message("Axis remap configured.")
                     continue
                 else:
                     self.bno.close()
