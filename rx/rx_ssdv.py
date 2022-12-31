@@ -167,6 +167,12 @@ while True:
 		# 	logging.critical("Caught EOF. Exiting.")
 		# 	sys.exit(1)
 
+
+	if data == b'':
+		# EOF! Quit.
+		logging.critical("EOF on stdin, possible rtl_sdr failure? Exiting.")
+		sys.exit(1)
+
 	try:
 		packet_type = decode_packet_type(data)
 
