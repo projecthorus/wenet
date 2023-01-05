@@ -44,6 +44,7 @@ RUN --mount=type=cache,target=/root/.cache/pip pip3 install \
     crcmod \
     flask \
     flask-socketio \
+    simple-websocket \
     requests 
 
 # Copy in wenet.

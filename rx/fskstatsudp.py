@@ -6,6 +6,7 @@
 #   Released under GNU GPL v3 or later
 #
 import argparse
+import datetime
 import json
 import logging
 import socket
@@ -49,6 +50,7 @@ class FSKDemodStats(object):
         self.peak_hold = peak_hold
         self.decoder_id = str(decoder_id)
         self.freq = freq
+        self.fcentre = 0.0
         self.sample_rate = sample_rate
         self.real = real
 
@@ -108,6 +110,7 @@ class FSKDemodStats(object):
         self.fft = np.array(_data['samp_fft'])
         self.fest[0] = _data['f1_est']
         self.fest[1] = _data['f2_est']
+        self.fcentre = self.freq + (self.fest[0] + self.fest[1])/2.0
 
         #self.fft = self.fft[self.fft>0.0]
 
@@ -212,7 +215,9 @@ if __name__ == "__main__":
                     'fft_db': stats_parser.fft_db,
                     'fft_freq': stats_parser.fft_freq,
                     'fest': stats_parser.fest,
-                    'freq': stats_parser.freq
+                    'freq': stats_parser.freq,
+                    'fcentre': stats_parser.fcentre,
+                    'time': datetime.datetime.utcnow().strftime("%Y-%m-%d %H:%M:%SZ")
                 }
 
                 send_modem_stats(_stats)

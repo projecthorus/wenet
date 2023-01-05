@@ -8,7 +8,7 @@
     <link href="{{ url_for('static', filename='css/wenet.css') }}" rel="stylesheet">
     <link href="{{ url_for('static', filename='css/c3.min.css') }}" rel="stylesheet">
     <script src="{{ url_for('static', filename='js/jquery-3.3.1.min.js')}}"></script>
-    <script src="{{ url_for('static', filename='js/socket.io-4.1.2.min.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/socket.io-4.5.4.min.js') }}"></script>
     <script src="{{ url_for('static', filename='js/c3.min.js') }}"></script>
     <script src="{{ url_for('static', filename='js/d3.min.js') }}"></script>
     <script src="{{ url_for('static', filename='js/fft_plot.js') }}"></script>
@@ -28,6 +28,10 @@
 
             // Handle an image update.
             socket.on('image_update', function(msg) {
+                if(document.visibilityState == "hidden"){
+                    return;
+                }
+
                 var myImageElement = document.getElementById('wenet_image');
                 myImageElement.src = 'latest.jpg?rand=' + Math.random();
 
@@ -43,12 +47,22 @@
 
 
             socket.on('modem_stats', function(msg) {
+                if(document.visibilityState == "hidden"){
+                    return;
+                }
 
                 var snr = msg.snr.toFixed(1);
                 var ppm = msg.ppm.toFixed(1);
+                var freq = (msg.fcentre/1e6).toFixed(3);
 
-                var _new_desc = "SNR: " + snr + " dB"
+                var _new_desc = "SNR: " + snr + " dB";
                 $('#snr-data').html(_new_desc);
+                var _new_freq = freq + " MHz";
+                $('#freq-data').html(_new_freq);
+
+                var _new_time = msg.time;
+                $('#time-data').html(_new_time);
+
 
                 // Update the Spectra data.
                 scan_chart_spectra.columns[0] = ['x_spectra'].concat(msg.fft_freq);
@@ -132,7 +146,7 @@
 
             socket.on('image_telem_update', function(msg) {
 
-                console.log(msg);
+                //console.log(msg);
                 // {
                 //     "week": 2240,
                 //     "iTOW": 8220,
@@ -216,8 +230,14 @@
 <body>
     <div class="container-fluid">
         <div class="row">
-            <div class="col-10">
+            <div class="col-3">
                 <h3 class="masthead-brand">Wenet Dashboard</h3>
+            </div>
+            <div class="col-5">
+                <h4 class="snr-display" id="time-data"></h4>
+            </div>
+            <div class="col-2">
+                <h4 class="snr-display" id="freq-data"></h4>
             </div>
             <div class="col-2">
                 <h4 class="snr-display" id="snr-data">SNR: 0 dB</h4>
