@@ -234,7 +234,8 @@ while True:
 			debug_ptr=tx.transmit_text_message, 
 			vertical_flip=True, 
 			horizontal_flip=True,
-			greyworld=True)
+			#greyworld=True
+			)
 		
 		# If this succeeded, break out of this loop.
 		break

@@ -130,7 +130,7 @@
                 // }
 
                 if(msg.sys_cal==3){
-                    var sys_cal = "OK";
+                    var sys_cal =  "Cal (S" + msg.sys_cal.toFixed(0) + " G" + msg.gyro_cal.toFixed(0) + " A" + msg.accel_cal.toFixed(0) + " M" + msg.magnet_cal.toFixed(0) + ")";
                 } else {
                     var sys_cal = "Uncal (S" + msg.sys_cal.toFixed(0) + " G" + msg.gyro_cal.toFixed(0) + " A" + msg.accel_cal.toFixed(0) + " M" + msg.magnet_cal.toFixed(0) + ")";
                 }
