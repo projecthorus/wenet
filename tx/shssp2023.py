@@ -172,14 +172,14 @@ def post_process_image(filename):
 		if bno != None:
 			orientation = bno.read_state()
 
-			if (orientation['sys_cal'] == 3):
-				bno_string = "  Heading: %.1f˚ Pitch: %.1f˚ Roll: %.1f˚" % (
-					orientation['euler_heading'],
-					orientation['euler_pitch'],
-					orientation['euler_roll']
-				)
-			else:
-				bno_string = ""
+			bno_string = "  Heading: %.1f˚ Pitch: %.1f˚ Roll: %.1f˚" % (
+				orientation['euler_heading'],
+				orientation['euler_pitch'],
+				orientation['euler_roll']
+			)
+
+			if (orientation['sys_cal'] != 3):
+				bno_string += " (Uncal)"
 		else:
 			bno_string = ""
 
