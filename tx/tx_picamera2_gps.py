@@ -135,7 +135,7 @@ def post_process_image(filename):
 		gps_string = ""
 
 	# Build up our imagemagick 'convert' command line
-	overlay_str = "convert %s -gamma 0.8 -font Helvetica -pointsize 30 -gravity North " % filename 
+	overlay_str = "convert %s -gamma 0.8 -font Helvetica -pointsize 40 -gravity North " % filename 
 	overlay_str += "-strokewidth 2 -stroke '#000C' -annotate +0+5 \"%s\" " % gps_string
 	overlay_str += "-stroke none -fill white -annotate +0+5 \"%s\" " % gps_string
 	# Add on logo overlay argument if we have been given one.
