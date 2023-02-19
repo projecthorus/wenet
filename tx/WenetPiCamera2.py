@@ -13,6 +13,7 @@
 import glob
 import os
 import datetime
+import subprocess
 import time
 import traceback
 
@@ -97,12 +98,13 @@ class WenetPiCamera2(object):
 
         self.debug_ptr("Camera Resolution: " + str(self.camera_properties['PixelArraySize']))
 
-        # Configure camera.
+        # Configure camera, including flip settings.
         capture_config = self.cam.create_still_configuration(
             transform=Transform(hflip=self.horizontal_flip, vflip=self.vertical_flip)
         )
         self.cam.configure(capture_config)
 
+        # Set other settings, White Balance, exposure metering, etc.
         self.cam.set_controls(
             {'AwbMode': controls.AwbModeEnum.Daylight,
             'AeMeteringMode': controls.AeMeteringModeEnum.Matrix,
@@ -114,9 +116,13 @@ class WenetPiCamera2(object):
             self.debug_ptr("Configured lens position to " + str(self.lens_position))
             self.cam.set_controls({"AfMode": controls.AfModeEnum.Manual, "LensPosition": self.lens_position})
 
-        # Start the 'preview' mode, effectively opening the 'shutter'.
+        # Enable the camera, effectively opening the 'shutter'.
         # This lets the camera gain control algs start to settle.
-        self.cam.start()
+        #self.cam.start()
+
+        # NOTE - Trying out starting and stopping the camera just around image capture time.
+        # This may help deal with crashes after the camera is running for a long time, and also
+        # may help decrease CPU usage a little.
 
     def debug_message(self, message):
         """ Write a debug message.
@@ -142,7 +148,31 @@ class WenetPiCamera2(object):
             filename:	destination filename.
         """
 
+        # Ensure JPG quality is set as required.
         self.cam.options['quality'] = quality
+
+        # Set other settings, White Balance, exposure metering, etc.
+        self.cam.set_controls(
+            {'AwbMode': controls.AwbModeEnum.Daylight,
+            'AeMeteringMode': controls.AeMeteringModeEnum.Matrix,
+            'NoiseReductionMode': controls.draft.NoiseReductionModeEnum.Off}
+            )
+
+        # Set Pi Camera 3 lens position
+        if 'LensPosition' in self.cam.camera_controls:
+            self.debug_ptr("Configured lens position to " + str(self.lens_position))
+            self.cam.set_controls({"AfMode": controls.AfModeEnum.Manual, "LensPosition": self.lens_position})
+
+        self.debug_message("Enabling camera for image capture")
+
+        try:
+            self.cam.start()
+        except Exception as e:
+            self.debug_message("Could not enable camera! - " + str(e))
+            sleep(1)
+            return False
+
+        sleep(3)
 
         # Attempt to capture a set of images.
         for i in range(self.num_images):
@@ -157,8 +187,10 @@ class WenetPiCamera2(object):
                 self.debug_message("Capture Error: %s" % str(e))
                 # Immediately return false. Not much point continuing to try and capture images.
                 return False
-
         
+        self.debug_message("Disabling camera.")
+        self.cam.stop()
+
         # Otherwise, continue to pick the 'best' image based on filesize.
         self.debug_message("Choosing Best Image.")
         pic_list = glob.glob("%s_*.jpg" % self.temp_filename_prefix)
@@ -307,6 +339,11 @@ class WenetPiCamera2(object):
 
             # Increment image ID.
             image_id = (image_id + 1) % 256
+
+            _cpu_temp = self.get_cpu_temperature()
+            _cpu_freq = self.get_cpu_speed()
+            self.debug_message(f"CPU State: Temperature: {_cpu_temp:.1f} degC, Frequency: {_cpu_freq} MHz")
+
         # Loop!
 
         self.debug_message("Uh oh, we broke out of the main thread. This is not good!")
@@ -347,6 +384,26 @@ class WenetPiCamera2(object):
     capture_finished = False
     def trigger_capture():
         pass
+
+    def get_cpu_temperature(self):
+        """ Grab the temperature of the RPi CPU """
+        try:
+            data = subprocess.check_output("/usr/bin/vcgencmd measure_temp", shell=True)
+            temp = data.decode().split('=')[1].split('\'')[0]
+            return float(temp)
+        except Exception as e:
+            self.debug_message("Error reading temperature - %s" % str(e))
+            return -999
+
+    def get_cpu_speed(self):
+        """ Get the current CPU Frequency """
+        try:
+            data = subprocess.check_output("cat /sys/devices/system/cpu/cpu0/cpufreq/scaling_cur_freq", shell=True)
+            freq = int(data.decode().strip())/1000
+            return freq
+        except Exception as e:
+            self.debug_message("Error reading CPU Freq - %s" % str(e))
+            return -1
 
 
 # Basic transmission test script.

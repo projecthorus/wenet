@@ -98,8 +98,9 @@
                     var lon = msg.longitude.toFixed(5);
                     var alt = msg.altitude.toFixed(0);
                     var ascent = msg.ascent_rate.toFixed(1);
+                    var numSV = msg.numSV.toFixed(0);
 
-                    var _new_desc = lat + ", " + lon + " " + alt + "m " + ascent + " m/s"
+                    var _new_desc = msg.timestamp + "Z " + lat + ", " + lon + " " + alt + "m " + ascent + " m/s " + numSV + " SVs";
                     $('#gps-data').html(_new_desc);
                 }
             });
@@ -180,8 +181,9 @@
                     var lon = msg.longitude.toFixed(5);
                     var alt = msg.altitude.toFixed(0);
                     var ascent = msg.ascent_rate.toFixed(1);
+                    var numSV = msg.numSV.toFixed(0);
 
-                    var _gps_desc = lat + ", " + lon + " " + alt + "m " + ascent + " m/s"
+                    var _gps_desc = lat + ", " + lon + " " + alt + "m " + ascent + " m/s, " + numSV + " SVs";
                 }
 
                 if(msg.sys_cal==3){
