@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 #
-#   PCA9685 LED Kill
+#   PCA9685 LED Killer
 #
 #   Shutdown all LEDs on a particular daughterboard in use in some Wenet Payloads
 #   that has 3x LEDs that are always powered up on boot...
+#   ... maybe we should do something with these LEDs instead of just shutting them down? I dunno.
 #
 #   LEDs are attached to PCA9685 LED pins 0-8
 #
