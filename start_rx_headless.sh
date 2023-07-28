@@ -94,7 +94,7 @@ python ssdvuploader.py $MYCALL &
 SSDV_UPLOAD_PID=$!
 
 # Start the Web Interface Server
-python wenetserver.py &
+python wenetserver.py $MYCALL &
 WEB_VIEWER_PID=$!
 
 

@@ -49,9 +49,10 @@ LOG_FILENAME = os.path.join(args.rximages,datetime.datetime.utcnow().strftime("%
 
 
 # GUI updates are only sent locally.
-def trigger_gui_update(filename, text = "None"):
+def trigger_gui_update(filename, text = "None", metadata = None):
 	message = 	{'filename': filename,
-				'text': text}
+				'text': text,
+				'metadata': metadata}
 
 	gui_socket = socket.socket(socket.AF_INET,socket.SOCK_DGRAM)
 	gui_socket.sendto(json.dumps(message).encode('ascii'),("127.0.0.1",WENET_IMAGE_UDP_PORT))
@@ -231,7 +232,7 @@ while True:
 						os.system(f"mv rxtemp.bin {_dessdv_filename}.bin")
 
 						# Update live displays here.
-						trigger_gui_update(os.path.abspath(_dessdv_filename+".jpg"), packet_as_string)
+						trigger_gui_update(os.path.abspath(_dessdv_filename+".jpg"), packet_as_string, packet_info)
 
 						# Trigger upload to habhub here.
 				else:
@@ -258,7 +259,7 @@ while True:
 						returncode = os.system("ssdv -d rxtemp.bin rxtemp.jpg 2>/dev/null > /dev/null")
 						if returncode == 0:
 							logging.debug("Wrote out partial update of image ID #%d" % current_image)
-							trigger_gui_update(os.path.abspath("rxtemp.jpg"), packet_as_string)
+							trigger_gui_update(os.path.abspath("rxtemp.jpg"), packet_as_string, packet_info)
 		else:
 			logging.debug("Unknown Packet Format.")
 	

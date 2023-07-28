@@ -29,7 +29,7 @@ python3 ssdvuploader.py "$MYCALL" &
 SSDV_UPLOAD_PID=$!
 
 # Start the Web Interface Server
-python3 wenetserver.py &
+python3 wenetserver.py "$MYCALL" &
 WEB_VIEWER_PID=$!
 
 # Calculate the SDR sample rate required.

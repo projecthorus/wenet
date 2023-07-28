@@ -1139,7 +1139,7 @@ class UBloxGPS(object):
                 msg_name = msg.name()
                 #print(msg_name)
             except Exception as e:
-                self.debug_message("WARNING: GPS Failure. Attempting to reconnect.")
+                self.debug_message("WARNING: GPS Failure - " + str(e))
                 self.write_state('numSV',0)
                 # Attempt to re-open GPS.
                 time.sleep(5)

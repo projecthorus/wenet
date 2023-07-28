@@ -27,6 +27,8 @@ from io import BytesIO
 
 from WenetPackets import *
 
+from sondehub.amateur import Uploader
+
 # Define Flask Application, and allow automatic reloading of templates for dev
 app = flask.Flask(__name__)
 app.config['SECRET_KEY'] = 'secret!'
@@ -36,10 +38,18 @@ app.jinja_env.auto_reload = True
 # SocketIO instance
 socketio = SocketIO(app)
 
+# PySondeHub Uploader, instantiated later.
+sondehub = None
 
 # Latest Image
 latest_image = None
 latest_image_lock = Lock()
+
+
+# Data we need for uploading telemetry to SondeHub-Amateur
+my_callsign = "N0CALL"
+current_callsign = None
+current_modem_stats = None
 
 
 #
@@ -69,14 +79,12 @@ def serve_latest_image():
             as_attachment=False)
 
 
-
 def flask_emit_event(event_name="none", data={}):
     """ Emit a socketio event to any clients. """
     socketio.emit(event_name, data, namespace='/update_status') 
 
 
 # SocketIO Handlers
-
 @socketio.on('client_connected', namespace='/update_status')
 def update_client_display(data):
     pass
@@ -102,6 +110,47 @@ def update_image(filename, description):
         logging.error("Error loading new image %s - %s" % (filename, str(e)))
 
 
+
+def handle_gps_telemetry(gps_data):
+    global current_callsign, current_modem_stats
+
+    if current_callsign is None:
+        # No callsign yet, can't do anything with the GPS data
+        return
+
+    if current_modem_stats is None:
+        # No modem stats, don't want to upload without that info.
+        return
+
+    # Only upload telemetry if we have GPS lock.
+    if gps_data['gpsFix'] != 3:
+        logging.debug("No GPS lock - discarding GPS telemetry.")
+        return
+
+    
+    if sondehub:
+        # Add to the SondeHub-Amateur uploader!
+        sondehub.add_telemetry(
+            current_callsign + "-Wenet",
+            gps_data['timestamp'] + "Z",
+            round(gps_data['latitude'],6),
+            round(gps_data['longitude'],6),
+            round(gps_data['altitude'],1),
+            sats = gps_data['numSV'],
+            heading = round(gps_data['heading'],1),
+            extra_fields = {
+                'ascent_rate': round(gps_data['ascent_rate'],1),
+                'speed': round(gps_data['ground_speed'],1)
+            },
+            modulation = "Wenet",
+            frequency = round(current_modem_stats['fcentre']/1e6, 5),
+            snr = round(current_modem_stats['snr'],1)
+        )
+
+    # TODO - Emit as a Horus UDP Payload Summary packet.
+
+
+
 def handle_telemetry(packet):
     """ Handle GPS and Text message packets from the wenet receiver """
 
@@ -113,6 +162,8 @@ def handle_telemetry(packet):
         gps_data = gps_telemetry_decoder(packet)
         if gps_data['error'] == 'None':
             flask_emit_event('gps_update', data=gps_data)
+
+        handle_gps_telemetry(gps_data)
 
     elif packet_type == WENET_PACKET_TYPES.TEXT_MESSAGE:
         # A text message from the payload.
@@ -138,12 +189,18 @@ def handle_telemetry(packet):
 
 
 def process_udp(packet):
+    global current_callsign, current_modem_stats
 
     packet_dict = json.loads(packet.decode('ascii'))
 
     if 'filename' in packet_dict:
         # New image to load
         update_image(packet_dict['filename'], packet_dict['text'])
+
+        new_callsign = packet_dict['metadata']['callsign']
+        if current_callsign != new_callsign:
+            logging.info(f"Received new payload callsign data: {new_callsign}")
+            current_callsign = new_callsign
 
     elif 'uploader_status' in packet_dict:
         # Information from the uploader process.
@@ -152,6 +209,7 @@ def process_udp(packet):
     elif 'snr' in packet_dict:
         # Modem statistics packet
         flask_emit_event('modem_stats', data=packet_dict)
+        current_modem_stats = packet_dict
 
     elif 'type' in packet_dict:
         # Generic telemetry packet from the wenet RX.
@@ -197,8 +255,10 @@ if __name__ == "__main__":
     import argparse
 
     parser = argparse.ArgumentParser()
+    parser.add_argument("callsign", help="SondeHub-Amateur Uploader Callsign")
     parser.add_argument("-l", "--listen_port",default=5003,help="Port to run Web Server on. (Default: 5003)")
     parser.add_argument("-v", "--verbose", action='store_true', help="Enable debug output.")
+    parser.add_argument("--no_sondehub", action='store_true', help="Disable SondeHub-Amateur position upload.")
     args = parser.parse_args()
 
 
@@ -208,6 +268,12 @@ if __name__ == "__main__":
         log_level = logging.ERROR
 
     logging.basicConfig(format='%(asctime)s %(levelname)s: %(message)s', level=log_level)
+
+    my_callsign = args.callsign
+
+    # Instantiate the SondeHub-Amateur Uploader
+    if not args.no_sondehub:
+        sondehub = Uploader(my_callsign, software_name="pysondehub-wenet", software_version=WENET_VERSION)
 
     logging.getLogger("werkzeug").setLevel(logging.ERROR)
     logging.getLogger("socketio").setLevel(logging.ERROR)

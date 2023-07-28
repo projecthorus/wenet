@@ -45,7 +45,8 @@ RUN --mount=type=cache,target=/root/.cache/pip pip3 install \
     flask \
     flask-socketio \
     simple-websocket \
-    requests 
+    requests \
+    sondehub
 
 # Copy in wenet.
 COPY . /root/wenet
