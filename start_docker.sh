@@ -15,6 +15,9 @@ MYCALL=CHANGEME
 # The normal receive frequency used by Project Horus is 443.5 MHz
 RXFREQ=443500000
 
+# RTLSDR Device ID. Leave this at 0 if you don't want to use a particular device
+DEVICE=0
+
 # Receiver Gain. Set this to 0 to use automatic gain control, otherwise if running a
 # preamplifier, you may want to experiment with lower gain settings to optimize
 # your receiver setup.
@@ -53,6 +56,7 @@ docker run -d \
 	-e BIAS=$BIAS \
 	-e BAUD_RATE=$BAUD_RATE \
 	-e OVERSAMPLING=$OVERSAMPLING \
+	-e DEVICE=$DEVICE \
 	-v ~/wenet/rx_images/:/opt/wenet/rx_images/ \
 	--device /dev/bus/usb \
 	-p 5003:5003 \
