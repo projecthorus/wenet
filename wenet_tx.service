@@ -1,0 +1,18 @@
+[Unit]
+Description=wenet_tx
+After=basic.target
+
+[Service]
+# Update this path if not running as the pi user!
+ExecStart=/home/pi/wenet/start_tx_systemd.sh
+Restart=always
+RestartSec=30
+# This one too!
+WorkingDirectory=/home/pi/wenet/
+
+# NOTE - Wenet unfortunately needs to be run at root, else we can't easily set the system time.
+#User=pi
+SyslogIdentifier=wenet_tx
+
+[Install]
+WantedBy=multi-user.target

@@ -357,6 +357,7 @@ if __name__ == "__main__":
 	parser.add_argument("callsign", default="N0CALL", help="Payload Callsign")
 	parser.add_argument("--txport", default="/dev/ttyAMA0", type=str, help="Transmitter serial port. Defaults to /dev/ttyAMA0")
 	parser.add_argument("--baudrate", default=115200, type=int, help="Transmitter baud rate. Defaults to 115200 baud.")
+	parser.add_argument("--picamhq", default=False, action="store_true", help="Use PiCamera HQ image resolutions.")
 	args = parser.parse_args()
 
 	callsign = args.callsign
@@ -367,10 +368,20 @@ if __name__ == "__main__":
 
 	tx = PacketTX.PacketTX(serial_port=args.txport, serial_baud=args.baudrate, callsign=callsign)
 	tx.start_tx()
+	# Set the source and transmit image resolutions.
+	# For the PiCam HQ, we have a higher source resolution that we want to make use of!
+	# Note the transmit resolutions *must* be a multiple of 16.
+	if args.picamhq:
+		# Picam HQ Resolutions
+		_src_res = (4056,3040)
+		_tx_res = (1520,1136)
+	else:
+		# Picam V2 resolutions.
+		_src_res = (3280,2464)
+		_tx_res = (1488,1120)
 
-
-	picam = WenetPiCam(src_resolution=(1920,1088), 
-		tx_resolution=(1920,1088), 
+	picam = WenetPiCam(src_resolution=_src_res, 
+		tx_resolution=_tx_res, 
 		callsign=callsign, 
 		num_images=5, 
 		debug_ptr=tx.transmit_text_message, 
