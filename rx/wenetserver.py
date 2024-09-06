@@ -316,7 +316,7 @@ if __name__ == "__main__":
     parser.add_argument("-l", "--listen_port", default=5003, help="Port to run Web Server on. (Default: 5003)")
     parser.add_argument("-v", "--verbose", action='store_true', help="Enable debug output.")
     parser.add_argument("--no_sondehub", action='store_true', help="Disable SondeHub-Amateur position upload.")
-    parser.add_argument("-u", "--udp_port", default=0, help="Port to emit Horus UDP packets on. (Default: 0 (disabled), Typical: 55673)")
+    parser.add_argument("-u", "--udp_port", default=None, type=int, help="Port to emit Horus UDP packets on. (Default: 0 (disabled), Typical: 55673)")
     args = parser.parse_args()
 
 
@@ -333,7 +333,8 @@ if __name__ == "__main__":
     if not args.no_sondehub:
         sondehub = Uploader(my_callsign, software_name="pysondehub-wenet", software_version=WENET_VERSION)
 
-    udp_emit_port = int(args.udp_port)
+    if args.udp_port:
+        udp_emit_port = args.udp_port
 
     logging.getLogger("werkzeug").setLevel(logging.ERROR)
     logging.getLogger("socketio").setLevel(logging.ERROR)
