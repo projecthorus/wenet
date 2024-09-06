@@ -23,13 +23,18 @@ fi
 : "${BIAS:=0}"
 : "${BAUD_RATE:=115177}"
 : "${OVERSAMPLING:=8}"
+: "${UDP_PORT:=0}"
 
 # Start up the SSDV Uploader script and push it into the background.
 python3 ssdvuploader.py "$MYCALL" &
 SSDV_UPLOAD_PID=$!
 
 # Start the Web Interface Server
-python3 wenetserver.py "$MYCALL" &
+if [ "$UDP_PORT" = "0" ]; then
+  python3 wenetserver.py "$MYCALL" &
+else
+  python3 wenetserver.py "$MYCALL" -u "$UDP_PORT" &
+fi
 WEB_VIEWER_PID=$!
 
 # Calculate the SDR sample rate required.
