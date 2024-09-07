@@ -42,6 +42,13 @@ BAUD_RATE=115177
 OVERSAMPLING=8
 
 
+# UDP Payload Summary
+# Default: 0 (disabled)
+# Set this to a valid UDP port (55673 typically) to emit payload summary packets for use
+# with Chasemapper
+UDP_PORT=0
+
+
 # Stop and remove any existing wenet instances
 echo "Stopping/Removing any existing Wenet instances..."
 docker stop wenet || true && docker rm wenet || true
@@ -57,6 +64,7 @@ docker run -d \
 	-e BAUD_RATE=$BAUD_RATE \
 	-e OVERSAMPLING=$OVERSAMPLING \
 	-e DEVICE=$DEVICE \
+	-e UDP_PORT=$UDP_PORT \
 	-v ~/wenet/rx_images/:/opt/wenet/rx_images/ \
 	--device /dev/bus/usb \
 	-p 5003:5003 \

@@ -41,6 +41,9 @@ socketio = SocketIO(app)
 # PySondeHub Uploader, instantiated later.
 sondehub = None
 
+# UDP port for Payload Summary emit
+udp_emit_port = 0
+
 # Latest Image
 latest_image = None
 latest_image_lock = Lock()
@@ -127,7 +130,7 @@ def handle_gps_telemetry(gps_data):
         logging.debug("No GPS lock - discarding GPS telemetry.")
         return
 
-    
+
     if sondehub:
         # Add to the SondeHub-Amateur uploader!
         sondehub.add_telemetry(
@@ -147,9 +150,63 @@ def handle_gps_telemetry(gps_data):
             snr = round(current_modem_stats['snr'],1)
         )
 
-    # TODO - Emit as a Horus UDP Payload Summary packet.
 
+    # Emit as a Horus UDP Payload Summary packet.
+    if udp_emit_port > 0:
+        try:
+            # Prepare heading & speed fields, if they are provided in the incoming telemetry blob.
 
+            # Generate 'short' time field.
+            _short_time = gps_data['timestamp'].split('T')[1] + 'Z'
+
+            packet = {
+                "type": "PAYLOAD_SUMMARY",
+                "station": my_callsign,
+                "callsign": current_callsign + "-Wenet",
+                "latitude": round(gps_data['latitude'],6),
+                "longitude": round(gps_data['longitude'],6),
+                "altitude": round(gps_data['altitude'],1),
+                "sats": gps_data['numSV'],
+                "speed": round(gps_data['ground_speed'],1),
+                "heading": round(gps_data['heading'],1),
+                "time": _short_time,
+                "frequency": round(current_modem_stats['fcentre']/1e6, 5),
+                "snr": round(current_modem_stats['snr'],1),
+                "comment": "Wenet",
+            }
+
+            # Set up our UDP socket
+            _s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            _s.settimeout(1)
+            # Set up socket for broadcast, and allow re-use of the address
+            _s.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
+            _s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            # Under OSX we also need to set SO_REUSEPORT to 1
+            try:
+                _s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEPORT, 1)
+            except:
+                pass
+
+            try:
+                _s.sendto(
+                    json.dumps(packet).encode("ascii"),
+                    ("<broadcast>", udp_emit_port),
+                )
+            # Catch any socket errors, that may occur when attempting to send to a broadcast address
+            # when there is no network connected. In this case, re-try and send to localhost instead.
+            except socket.error as e:
+                logging.debug(
+                    "Send to broadcast address failed, sending to localhost instead."
+                )
+                _s.sendto(
+                    json.dumps(packet).encode("ascii"),
+                    ("127.0.0.1", udp_emit_port),
+                )
+
+            _s.close()
+
+        except Exception as e:
+            logging.error("Error sending Payload Summary: %s" % str(e))
 
 def handle_telemetry(packet):
     """ Handle GPS and Text message packets from the wenet receiver """
@@ -256,9 +313,10 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser()
     parser.add_argument("callsign", help="SondeHub-Amateur Uploader Callsign")
-    parser.add_argument("-l", "--listen_port",default=5003,help="Port to run Web Server on. (Default: 5003)")
+    parser.add_argument("-l", "--listen_port", default=5003, help="Port to run Web Server on. (Default: 5003)")
     parser.add_argument("-v", "--verbose", action='store_true', help="Enable debug output.")
     parser.add_argument("--no_sondehub", action='store_true', help="Disable SondeHub-Amateur position upload.")
+    parser.add_argument("-u", "--udp_port", default=None, type=int, help="Port to emit Horus UDP packets on. (Default: 0 (disabled), Typical: 55673)")
     args = parser.parse_args()
 
 
@@ -274,6 +332,9 @@ if __name__ == "__main__":
     # Instantiate the SondeHub-Amateur Uploader
     if not args.no_sondehub:
         sondehub = Uploader(my_callsign, software_name="pysondehub-wenet", software_version=WENET_VERSION)
+
+    if args.udp_port:
+        udp_emit_port = args.udp_port
 
     logging.getLogger("werkzeug").setLevel(logging.ERROR)
     logging.getLogger("socketio").setLevel(logging.ERROR)
