@@ -35,6 +35,17 @@ class WenetPiCamera2(object):
 
     """
 
+    # White balance text to enum lookup
+    wb_lookup = {
+        "auto": controls.AwbModeEnum.Auto,
+        "incandescent": controls.AwbModeEnum.Incandescent,
+        "fluorescent": controls.AwbModeEnum.Fluorescent,
+        "tungsten": controls.AwbModeEnum.Tungsten,
+        "indoor": controls.AwbModeEnum.Indoor,
+        "daylight": controls.AwbModeEnum.Daylight,
+        "cloudy": controls.AwbModeEnum.Cloudy
+    }
+
     def __init__(self,
                 callsign = "N0CALL",
                 tx_resolution=(1936,1088), 
@@ -42,7 +53,7 @@ class WenetPiCamera2(object):
                 image_delay=0.0, 
                 vertical_flip = False, 
                 horizontal_flip = False,
-                greyworld = False,
+                whitebalance = 'auto',
                 lens_position = 0.0,
                 temp_filename_prefix = 'picam_temp',
                 debug_ptr = None
@@ -64,7 +75,7 @@ class WenetPiCamera2(object):
             vertical_flip: Flip captured images vertically.
             horizontal_flip: Flip captured images horizontally.
                             Used to correct for picam orientation.
-            greyworld: Use Greyworld AWB setting, for IR-filtered images.
+            whitebalance: White balance mode - allowed values: Auto, Incandescent, Tungesten, Fluorescent, Indoor, Daylight, Cloudy 
             lens_position: Lens Position setting (float), 0.0 = Infinity, 10 = very close.
                    Only usable on Pi Camera v3 modules.
 
@@ -81,11 +92,16 @@ class WenetPiCamera2(object):
         self.num_images = num_images
         self.image_delay = image_delay
         self.callsign = callsign
-        self.tx_resolution = tx_resolution
+        self.tx_resolution_init = tx_resolution
         self.horizontal_flip = horizontal_flip
         self.vertical_flip = vertical_flip
-        self.greyworld = greyworld
         self.lens_position = lens_position
+
+        if whitebalance.lower() in self.wb_lookup:
+            self.whitebalance = self.wb_lookup[whitebalance.lower()]
+        else:
+            self.whitebalance = self.wb_lookup['auto']
+
 
         self.init_camera()
 
@@ -96,7 +112,18 @@ class WenetPiCamera2(object):
 
         self.camera_properties = self.cam.camera_properties
 
-        self.debug_ptr("Camera Resolution: " + str(self.camera_properties['PixelArraySize']))
+        self.debug_ptr("Camera Native Resolution: " + str(self.camera_properties['PixelArraySize']))
+
+        # If the user has explicitly specified the transmit image resolution, use it.
+        if type(self.tx_resolution_init) == tuple:
+            self.tx_resolution = self.tx_resolution_init
+            self.debug_ptr(f"Transmit Resolution set to {str(self.tx_resolution)}")
+        # Otherwise, has the user provided a floating point scaling factor?
+        elif type(self.tx_resolution_init) == float:
+            res_x = 16*int(self.camera_properties['PixelArraySize'][0]*self.tx_resolution_init/16)
+            res_y = 16*int(self.camera_properties['PixelArraySize'][1]*self.tx_resolution_init/16)
+            self.tx_resolution = (res_x, res_y)
+            self.debug_ptr(f"Transmit Resolution set to {str(self.tx_resolution)}, scaled {self.tx_resolution_init} from native.")
 
         # Configure camera, including flip settings.
         capture_config = self.cam.create_still_configuration(
@@ -105,14 +132,15 @@ class WenetPiCamera2(object):
         self.cam.configure(capture_config)
 
         # Set other settings, White Balance, exposure metering, etc.
+
         self.cam.set_controls(
-            {'AwbMode': controls.AwbModeEnum.Daylight,
+            {'AwbMode': self.whitebalance,
             'AeMeteringMode': controls.AeMeteringModeEnum.Matrix,
             'NoiseReductionMode': controls.draft.NoiseReductionModeEnum.Off}
             )
 
         # Set Pi Camera 3 lens position
-        if 'LensPosition' in self.cam.camera_controls:
+        if 'LensPosition' in self.cam.camera_controls and self.lens_position>0:
             self.debug_ptr("Configured lens position to " + str(self.lens_position))
             self.cam.set_controls({"AfMode": controls.AfModeEnum.Manual, "LensPosition": self.lens_position})
 
@@ -153,13 +181,13 @@ class WenetPiCamera2(object):
 
         # Set other settings, White Balance, exposure metering, etc.
         self.cam.set_controls(
-            {'AwbMode': controls.AwbModeEnum.Daylight,
+            {'AwbMode': self.whitebalance,
             'AeMeteringMode': controls.AeMeteringModeEnum.Matrix,
             'NoiseReductionMode': controls.draft.NoiseReductionModeEnum.Off}
             )
 
         # Set Pi Camera 3 lens position
-        if 'LensPosition' in self.cam.camera_controls:
+        if 'LensPosition' in self.cam.camera_controls and self.lens_position>0:
             self.debug_ptr("Configured lens position to " + str(self.lens_position))
             self.cam.set_controls({"AfMode": controls.AfModeEnum.Manual, "LensPosition": self.lens_position})
 

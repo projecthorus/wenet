@@ -28,6 +28,7 @@ from time import sleep
 from threading import Thread
 import numpy as np
 from ldpc_encoder import *
+from radio_wrappers import *
 from queue import Queue
 
 class PacketTX(object):
@@ -75,23 +76,16 @@ class PacketTX(object):
 
     # WARNING: 115200 baud is ACTUALLY 115386.834 baud, as measured using a freq counter.
     def __init__(self,
-        serial_port="/dev/ttyAMA0", 
-        serial_baud=115200, 
+        # Radio wrapper, for radio setup and modulation.
+        radio,
+        # User callsign, should be used in the idle sequence, but currently isn't...
+        callsign="N0CALL",
         payload_length=256, 
         fec=True, 
-        debug = False, 
-        callsign="N0CALL",
         udp_listener = None,
         log_file = None):
         
-        # Instantiate our low-level transmit interface, be it a serial port, or the BinaryDebug class.
-        if debug == True:
-            self.s = BinaryDebug()
-            self.debug = True
-        else:
-            self.debug = False
-            self.s = serial.Serial(serial_port,serial_baud)
-
+        self.radio = radio
 
         self.payload_length = payload_length
         self.callsign = callsign.encode('ascii')
@@ -159,19 +153,16 @@ class PacketTX(object):
         while self.transmit_active:
             if self.telemetry_queue.qsize()>0:
                 packet = self.telemetry_queue.get_nowait()
-                self.s.write(packet)
+                self.radio.transmit_packet(packet)
             elif self.ssdv_queue.qsize()>0:
                 packet = self.ssdv_queue.get_nowait()
-                self.s.write(packet)
+                self.radio.transmit_packet(packet)
             else:
-                if not self.debug:
-                    self.s.write(self.idle_message)
-                else:
-                    # TODO: Tune this value.
-                    sleep(0.05)
+                self.radio.transmit_packet(self.idle_message)
+                time.sleep(0.1)
         
         print("Closing Thread")
-        self.s.close()
+        self.radio.shutdown()
 
 
     def close(self):
@@ -534,16 +525,39 @@ if __name__ == "__main__":
     import argparse
 
     parser = argparse.ArgumentParser()
-    parser.add_argument("--txport", default="/dev/ttyAMA0", type=str, help="Transmitter serial port. Defaults to /dev/ttyAMA0")
-    parser.add_argument("--baudrate", default=115200, type=int, help="Transmitter baud rate. Defaults to 115200 baud.")
+    parser.add_argument("--rfm98w", default=None, type=int, help="If set, configure a RFM98W on this SPI device number.")
+    parser.add_argument("--frequency", default=443.500, type=float, help="Transmit Frequency (MHz). (Default: 443.500 MHz)")
+    parser.add_argument("--baudrate", default=115200, type=int, help="Wenet TX baud rate. (Default: 115200).")
+    parser.add_argument("--serial_port", default="/dev/ttyAMA0", type=str, help="Serial Port for modulation.")
+    parser.add_argument("--tx_power", default=17, type=int, help="Transmit power in dBm (Default: 17 dBm, 50mW. Allowed values: 2-17)")
+    parser.add_argument("-v", "--verbose", action='store_true', default=False, help="Show additional debug info.")
     args = parser.parse_args()
-    debug_output = False # If True, packet bits are saved to debug.bin as one char per bit.
 
+    if args.verbose:
+        logging_level = logging.DEBUG
+    else:
+        logging_level = logging.INFO
+
+    # Set up logging
+    logging.basicConfig(format="%(asctime)s %(levelname)s: %(message)s", level=logging_level)
+
+    radio = None
+
+    if args.rfm98w is not None:
+        radio = RFM98W_Serial(
+            spidevice = args.rfm98w,
+            frequency = args.frequency,
+            baudrate = args.baudrate,
+            serial_port = args.serial_port,
+            tx_power_dbm = args.tx_power
+        )
+    # Other radio options would go here.
+    else:
+        logging.critical("No radio type specified! Exiting")
+        sys.exit(1)
 
     tx = PacketTX(
-        debug=debug_output,
-        serial_port=args.txport,
-        serial_baud=args.baudrate,
+        radio=radio,
         udp_listener=55674)
     tx.start_tx()
 
@@ -556,4 +570,4 @@ if __name__ == "__main__":
 
     except KeyboardInterrupt:
         tx.close()
-        print("Closing")
+        logging.info("Closing")

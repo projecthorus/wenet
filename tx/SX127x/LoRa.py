@@ -72,7 +72,7 @@ def setter(register_address):
 
 ############################################### Definition of the LoRa class ###########################################
 
-class LoRa(object):
+class LoRaRFM98W(object):
 
     BOARD = None
     spi = None              
