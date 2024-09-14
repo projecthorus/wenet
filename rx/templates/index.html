@@ -207,7 +207,7 @@
             var text_messages = [];
 
             socket.on('text_update', function(msg) {
-                var _text = "Msg #" + msg.id + ": " + msg.text;
+                var _text = msg.timestamp + " Msg #" + msg.id + ": " + msg.text;
                 text_messages.push(_text);
                 if(text_messages.length > 10){
                     text_messages.shift();

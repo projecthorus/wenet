@@ -225,6 +225,8 @@ def handle_telemetry(packet):
     elif packet_type == WENET_PACKET_TYPES.TEXT_MESSAGE:
         # A text message from the payload.
         text_data = decode_text_message(packet)
+        # Add some received timestamp info
+        text_data['timestamp'] = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%fZ")
         if text_data['error'] == 'None':
             flask_emit_event('text_update', data=text_data)
 
