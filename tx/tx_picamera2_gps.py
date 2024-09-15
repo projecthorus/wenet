@@ -21,7 +21,7 @@ from radio_wrappers import *
 
 parser = argparse.ArgumentParser()
 parser.add_argument("callsign", default="N0CALL", help="Payload Callsign")
-parser.add_argument("--gps", default="/dev/ttyACM0", help="uBlox GPS Serial port. Defaults to /dev/ttyACM0")
+parser.add_argument("--gps", default="none", help="uBlox GPS Serial port. Defaults to /dev/ttyACM0")
 parser.add_argument("--logo", default="none", help="Optional logo to overlay on image.")
 parser.add_argument("--rfm98w", default=0, type=int, help="If set, configure a RFM98W on this SPI device number.")
 parser.add_argument("--frequency", default=443.500, type=float, help="Transmit Frequency (MHz). (Default: 443.500 MHz)")
@@ -175,7 +175,7 @@ def post_process_image(filename):
 		gps_string = ""
 
 	# Build up our imagemagick 'convert' command line
-	overlay_str = "convert %s -gamma 0.8 -font Helvetica -pointsize 40 -gravity North " % filename 
+	overlay_str = "timeout -k 5 60 convert %s -gamma 0.8 -font Helvetica -pointsize 40 -gravity North " % filename 
 	overlay_str += "-strokewidth 2 -stroke '#000C' -annotate +0+5 \"%s\" " % gps_string
 	overlay_str += "-stroke none -fill white -annotate +0+5 \"%s\" " % gps_string
 	# Add on logo overlay argument if we have been given one.
@@ -185,7 +185,9 @@ def post_process_image(filename):
 	overlay_str += filename
 
 	tx.transmit_text_message("Adding overlays to image.")
-	os.system(overlay_str)
+	return_code = os.system(overlay_str)
+	if return_code != 0:
+		tx.transmit_text_message("Image Overlay operation failed! (Possible kernel Oops? Maybe set arm_freq to 700 MHz)")
 
 	return
 

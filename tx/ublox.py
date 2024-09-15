@@ -1240,6 +1240,7 @@ if __name__ == "__main__":
     parser.add_argument("--waitforlock", default=None, type=int, help="If set, exit after the GPS has obtained lock, or a timeout (in minutes) is reached.")
     parser.add_argument("--lockcount", default=60, type=int, help="If waitforlock is specified, wait until the GPS reports lock for this many sequential fixes. Default: 60")
     parser.add_argument("--locksats", default=None, type=int, help="If waitforlock is specified, also wait until the GPS reports this many SVs used in its solution. Default: None")
+    parser.add_argument("--ntp", action='store_true', default=False, help="Push time updates into NTPDSHM.")
     parser.add_argument("-v", "--verbose", action='store_true', default=False, help="Show additional debug info.")
     args = parser.parse_args()
 
@@ -1288,7 +1289,7 @@ if __name__ == "__main__":
         callback=gps_callback, 
         update_rate_ms=500, 
         dynamic_model=DYNAMIC_MODEL_AIRBORNE1G, 
-        ntpd_update=False
+        ntpd_update=args.ntp
         )
 
     try:
