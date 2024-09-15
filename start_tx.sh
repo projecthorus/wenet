@@ -1,10 +1,11 @@
 #!/bin/bash
 #
-#	Wenet TX-side Initialisation Script - Systemd Unit Version
-#	2024-07-21 Mark Jessop <vk5qi@rfhead.net>
+#	Wenet TX-side Initialisation Script
+#	2024-09-14 Mark Jessop <vk5qi@rfhead.net>
 #
 #	Run this to set up an attached RFM98W and start transmitting!
 #	Replace the transmit frequency and callsign with your own.
+#
 #
 
 # A callsign which will be included in the Wenet Packets.
@@ -78,6 +79,13 @@ done
 echo "Waiting another 10 seconds before startup."
 sleep 10
 
+# OPTIONAL - Wait for the GNSS receiver to obtain lock before starting up the camera and transmitter.
+# This may help with getting first GNSS lock after boot.
+# --waitforlock 10      Wait for up to 10 minutes before timing out and continuing anyway
+# --lockcount 60        Wait for 60 sequential valid 3D fixed before exiting (2 Hz update rate, so 60 -> 30 seconds)
+# --locksats 6          Only consider a fix as valid if it has more than 6 SVs in use.
+#python3 ublox.py --waitforlock 10 --lockcount 60 --locksats 6 $GPSPORT
+
 
 # Start the main TX Script.
 #
@@ -87,7 +95,8 @@ sleep 10
 # Add a logo overlay in the bottom right of the image. This must be a transparent PNG file.
 # --logo yourlogo.png \
 # Set a fixed focus position on a PiCam v3 (NOTE: The Picamv3 focus drifts with temperature - beware!!!)
-# --lensposition 0.5 \
+# 0.0 = Infinity
+# --lensposition 0.0 \
 
 python3 tx_picamera2_gps.py \
     --rfm98w $SPIDEVICE \

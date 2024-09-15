@@ -204,6 +204,86 @@ class RFM98W_Serial(object):
                 self.start()
 
 
+class SerialOnly(object):
+    """
+    Transmitter Wrapper that does not initialise any radios.
+    """
+
+    def __init__(
+            self,
+            baudrate=115200,
+            serial_port=None,
+            reinit_count=5000
+            ):
+        
+        self.baudrate = baudrate
+        self.serial_port = serial_port
+        self.reinit_count = reinit_count
+
+        self.tx_packet_count = 0
+
+        self.start()
+    
+
+    def start(self):
+        """
+        Initialise (or re-initialise) the Serial connection.
+        """
+    
+        # Initialise the Serial port for modulation
+        if self.serial_port:
+            try:
+                self.serial = serial.Serial(self.serial_port, self.baudrate)
+                logging.info(f"SerialOnly - Opened Serial port {self.serial_port} for modulation.")
+            except Exception as e:
+                logging.critical(f"SerialOnly - Could not open serial port! Error: {str(e)}")
+                self.serial = None
+
+        else:
+            # If no serial port info provided, write out to a binary debug file.
+            self.serial = BinaryDebug()
+            logging.info("SerialOnly - No serial port provided - using Binary Debug output (binary_debug.bin)")
+
+
+
+    def shutdown(self):
+        """
+        Shutdown the Serial connection.
+        """
+        try:
+            # Close the serial connection
+            self.serial.close()
+            logging.info("SerialOnly - Closed Serial Port")
+            self.serial = None
+        except:
+            pass
+
+        return
+
+    
+    def comms_ok(self):
+        """
+        Dummy function, no radio comms to test.
+        """
+        return True
+    
+
+    def transmit_packet(self, packet):
+        """
+        Modulate serial data, using a UART.
+        """
+        if self.serial:
+            self.serial.write(packet)
+
+        # Increment transmit packet counter
+        self.tx_packet_count += 1
+
+        # If we have a reinitialisation count set, reinitialise the radio.
+        if self.reinit_count:
+            if self.tx_packet_count % self.reinit_count == 0:
+                logging.info(f"SerialOnly - Reinitialising Serial at {self.tx_packet_count} packets.")
+                self.start()
+
 
 class BinaryDebug(object):
     """ Debug binary 'transmitter' Class

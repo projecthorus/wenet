@@ -32,7 +32,7 @@ parser.add_argument("--vflip", action='store_true', default=False, help="Flip ca
 parser.add_argument("--hflip", action='store_true', default=False, help="Flip captured image horizontally.")
 parser.add_argument("--resize", type=float, default=0.5, help="Resize raw image from camera by this factor before transmit (in both X/Y, to nearest multiple of 16 pixels). Default=0.5")
 parser.add_argument("--whitebalance", type=str, default='daylight', help="White Balance setting: Auto, Daylight, Cloudy, Incandescent, Tungesten, Fluorescent, Indoor")
-parser.add_argument("--lensposition", type=float, default=-1, help="For PiCam v3, set the lens position. Default: -1 = Autofocus")
+parser.add_argument("--lensposition", type=float, default=-1.0, help="For PiCam v3, set the lens position. Default: -1 = Autofocus")
 parser.add_argument("-v", "--verbose", action='store_true', default=False, help="Show additional debug info.")
 args = parser.parse_args()
 
