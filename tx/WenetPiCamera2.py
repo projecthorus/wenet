@@ -104,9 +104,12 @@ class WenetPiCamera2(object):
             self.whitebalance = self.wb_lookup['auto']
 
 
+        # If we startup too early, the camera is sometimes not available to us.
+        # Try and initialise for a while with breaks in between until we can talk to it...
         while init_retries > 0:
             try: 
                 self.init_camera()
+                break
             except Exception as e:
                 self.debug_message(f"Error initialising camera, retrying in 10 seconds: - {str(e)}")
             time.sleep(10)
@@ -115,6 +118,15 @@ class WenetPiCamera2(object):
 
     def init_camera(self):
         # Attempt to start picam.
+
+        # Shutdown any previous instances of the camera object.
+        # If we don't do this, we can end up with all sorts of fun errors.
+        try:
+            self.cam.close()
+            self.debug_message("Closed broken instance of Picamera2")
+        except:
+            pass
+
         self.cam = Picamera2()
 
         self.camera_properties = self.cam.camera_properties
