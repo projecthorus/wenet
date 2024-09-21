@@ -54,7 +54,8 @@ class WenetPiCamera2(object):
                 whitebalance = 'auto',
                 lens_position = -1,
                 temp_filename_prefix = 'picam_temp',
-                debug_ptr = None
+                debug_ptr = None,
+                init_retries = 10
                 ):
 
         """ Instantiate a WenetPiCam Object
@@ -103,8 +104,13 @@ class WenetPiCamera2(object):
             self.whitebalance = self.wb_lookup['auto']
 
 
-
-        self.init_camera()
+        while init_retries > 0:
+            try: 
+                self.init_camera()
+            except Exception as e:
+                self.debug_message(f"Error initialising camera, retrying in 10 seconds: - {str(e)}")
+            time.sleep(10)
+            init_retries -= 1
 
 
     def init_camera(self):
@@ -323,7 +329,11 @@ class WenetPiCamera2(object):
             capture_filename = destination_directory + "/%s_picam.jpg" % capture_time
 
             # Attempt to capture.
-            capture_successful = self.capture(capture_filename)
+            try:
+                capture_successful = self.capture(capture_filename)
+            except Exception as e:
+                self.debug_message(f"Exception on capture - {str(e)}")
+                capture_successful = False
 
             # If capture was unsuccessful, try again in a little bit
             if not capture_successful:
