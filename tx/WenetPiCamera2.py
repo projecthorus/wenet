@@ -189,8 +189,14 @@ class WenetPiCamera2(object):
             print(message)
 
     def close(self):
-        self.cam.stop()
-        self.cam.close()
+        try:
+            self.cam.stop()
+        except:
+            self.debug_message("Stopping camera object failed.")
+        try:
+            self.cam.close()
+        except:
+            self.debug_message("Closing camera object failed.")
 
     def capture(self, filename='picam.jpg', quality=90):
         """ Capture an image using the PiCam
@@ -353,8 +359,13 @@ class WenetPiCamera2(object):
 
                 self.debug_message("Capture failed! Attempting to reset camera...")
 
+                # Try and stop, then close the camera object.
                 try:
                     self.cam.stop()
+                except:
+                    self.debug_message("Stopping camera object failed.")
+                
+                try:
                     self.cam.close()
                 except:
                     self.debug_message("Closing camera object failed.")
