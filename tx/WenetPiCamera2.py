@@ -269,7 +269,7 @@ class WenetPiCamera2(object):
 
         # Resize image to the desired resolution.
         self.debug_message("Resizing image.")
-        return_code = os.system("timeout -k 5 60 convert %s -resize %dx%d\! picam_temp.jpg" % (filename, self.tx_resolution[0], self.tx_resolution[1]))
+        return_code = os.system("timeout -k 5 180 convert %s -scale %dx%d\! picam_temp.jpg" % (filename, self.tx_resolution[0], self.tx_resolution[1]))
         if return_code != 0:
             self.debug_message("Resize operation failed! (Possible kernel Oops? Maybe set arm_freq to 700 MHz)")
             return "FAIL"
