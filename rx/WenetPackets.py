@@ -36,9 +36,9 @@ class WENET_PACKET_TYPES:
 
 
 class WENET_PACKET_LENGTHS:
-    GPS_TELEMETRY       = 35
-    ORIENTATION_TELEMETRY = 43
-    IMAGE_TELEMETRY = 80
+    GPS_TELEMETRY           = 61
+    ORIENTATION_TELEMETRY   = 43
+    IMAGE_TELEMETRY         = 80
 
 
 def decode_packet_type(packet):
@@ -178,7 +178,8 @@ def gps_telemetry_decoder(packet):
     """ Extract GPS telemetry data from a packet, and return it as a dictionary. 
 
     Keyword Arguments:
-    packet: A GPS telemetry packet, as per https://docs.google.com/document/d/12230J1X3r2-IcLVLkeaVmIXqFeo3uheurFakElIaPVo/edit?usp=sharing
+    packet: A GPS telemetry packet, as per
+            https://github.com/projecthorus/wenet/wiki/Modem-&-Packet-Format-Details#0x01---gps-telemetry
             This can be provided as either a string, or a list of integers, which will be converted
             to a string prior to decoding.
 
@@ -207,7 +208,7 @@ def gps_telemetry_decoder(packet):
     # Wrap the next bit in exception handling.
     try:
         # Unpack the packet into a list.
-        data = struct.unpack('>BHIBffffffBBB', packet)
+        data = struct.unpack(">BHIBffffffBBBffHffff", packet)
 
         gps_data['week']    = data[1]
         gps_data['iTOW']    = data[2]/1000.0 # iTOW provided as milliseconds, convert to seconds.
@@ -221,6 +222,27 @@ def gps_telemetry_decoder(packet):
         gps_data['numSV']   = data[10]
         gps_data['gpsFix']  = data[11]
         gps_data['dynamic_model'] = data[12]
+        # New fields 2024-09
+        gps_data['radio_temp'] = round(data[13],1)
+        gps_data['cpu_temp'] = round(data[14],1)
+        gps_data['cpu_speed'] = data[15]
+        gps_data['load_avg_1'] = round(data[16],3)
+        gps_data['load_avg_5'] = round(data[17],3)
+        gps_data['load_avg_15'] = round(data[18],3)
+        gps_data['disk_percent'] = round(data[19],3)
+        # Check to see if we actually have real data in these new fields.
+        # If its an old transmitter, it will have 0x55 in these spots, which we can detect
+        if gps_data['cpu_speed'] == 21845:
+            # 0x5555 -> 21825, which we use as an indication that padding is in use.
+            # Set all the new fields to invalid values
+            gps_data['radio_temp'] = -999.0
+            gps_data['cpu_temp'] = -999.0
+            gps_data['cpu_speed'] = 0
+            gps_data['load_avg_1'] = 0
+            gps_data['load_avg_5'] = 0
+            gps_data['load_avg_15'] = 0
+            gps_data['disk_percent'] = -1.0
+
 
         # Perform some post-processing on the data, to make some of the fields easier to read.
 
@@ -281,7 +303,7 @@ def gps_telemetry_string(packet):
     if gps_data['error'] != 'None':
         return "GPS: ERROR Could not decode."
     else:
-        gps_data_string = "GPS: %s Lat/Lon: %.5f,%.5f Alt: %dm, Speed: H %dkph V %.1fm/s, Heading: %d deg, Fix: %s, SVs: %d, Model: %s " % (
+        gps_data_string = "GPS: %s Lat/Lon: %.5f,%.5f Alt: %dm, Speed: H %dkph V %.1fm/s, Heading: %d deg, Fix: %s, SVs: %d, DynModel: %s, Radio Temp: %.1f, CPU Temp: %.1f, CPU Speed: %d, Load Avg: %.2f, %.2f, %.2f, Disk Usage: %.1f%%" % (
             gps_data['timestamp'],
             gps_data['latitude'],
             gps_data['longitude'],
@@ -291,7 +313,14 @@ def gps_telemetry_string(packet):
             int(gps_data['heading']),
             gps_data['gpsFix_str'],
             gps_data['numSV'],
-            gps_data['dynamic_model_str']
+            gps_data['dynamic_model_str'],
+            gps_data['radio_temp'],
+            gps_data['cpu_temp'],
+            gps_data['cpu_speed'],
+            gps_data['load_avg_1'],
+            gps_data['load_avg_5'],
+            gps_data['load_avg_15'],
+            gps_data['disk_percent']
             )
 
         return gps_data_string

@@ -21,8 +21,10 @@ import os
 import datetime
 import crcmod
 import json
+import shutil
 import socket
 import struct
+import subprocess
 import traceback
 from time import sleep
 from threading import Thread
@@ -256,21 +258,39 @@ class PacketTX(object):
     def transmit_gps_telemetry(self, gps_data):
         """ Generate and Transmit a GPS Telemetry Packet.
 
+        Host platform CPU speed, temperature and load averages are collected and included in this packet too.
+
         Keyword Arguments:
         gps_data: A dictionary, as produced by the UBloxGPS class. It must have the following fields:
                   latitude, longitude, altitude, ground_speed, ascent_rate, heading, gpsFix, numSV,
                   week, iTOW, leapS, dynamic_model.
+        
 
         The generated packet format is in accordance with the specification in:
-        https://docs.google.com/document/d/12230J1X3r2-IcLVLkeaVmIXqFeo3uheurFakElIaPVo/edit?usp=sharing
+        https://github.com/projecthorus/wenet/wiki/Modem-&-Packet-Format-Details#0x01---gps-telemetry
 
         The corresponding decoder for this packet format is within rx/WenetPackets.py, in the function
         gps_telemetry_decoder
 
         """
 
+        # Collect non-GPS information to add to the packet.
+        _radio_temp = self.radio.temperature
+        _cpu_speed = self.get_cpu_speed()
+        _cpu_temp = self.get_cpu_temperature()
+        _load_avg_1, _load_avg_5, _load_avg_15 = os.getloadavg()
+
+        # Collect disk usage information
+        # Unsure of the likelyhood of this failing, but wrapping it in a try/except anyway
         try:
-            gps_packet = struct.pack(">BHIBffffffBBB",
+            _disk_usage = shutil.disk_usage(".")
+            _disk_percent = 100.0 * (_disk_usage.used / _disk_usage.total)
+        except:
+            _disk_percent = -1.0
+
+        # Construct the packet
+        try:
+            gps_packet = struct.pack(">BHIBffffffBBBffHffff",
                 1,  # Packet ID for the GPS Telemetry Packet.
                 gps_data['week'],
                 int(gps_data['iTOW']*1000), # Convert the GPS week value to milliseconds, and cast to an int.
@@ -283,7 +303,15 @@ class PacketTX(object):
                 gps_data['ascent_rate'],
                 gps_data['numSV'],
                 gps_data['gpsFix'],
-                gps_data['dynamic_model']
+                gps_data['dynamic_model'],
+                # New fields 2024-09
+                _radio_temp,
+                _cpu_temp,
+                int(_cpu_speed),
+                _load_avg_1,
+                _load_avg_5,
+                _load_avg_15,
+                _disk_percent
                 )
 
             self.queue_telemetry_packet(gps_packet)
@@ -423,6 +451,25 @@ class PacketTX(object):
         self.queue_telemetry_packet(_packet, repeats=repeats)
 
 
+    def get_cpu_temperature(self):
+        """ Grab the temperature of the RPi CPU """
+        try:
+            data = subprocess.check_output("/usr/bin/vcgencmd measure_temp", shell=True)
+            temp = data.decode().split('=')[1].split('\'')[0]
+            return float(temp)
+        except Exception as e:
+            print("Error reading temperature - %s" % str(e))
+            return -999.0
+
+    def get_cpu_speed(self):
+        """ Get the current CPU Frequency """
+        try:
+            data = subprocess.check_output("cat /sys/devices/system/cpu/cpu0/cpufreq/scaling_cur_freq", shell=True)
+            freq = int(data.decode().strip())/1000
+            return freq
+        except Exception as e:
+            print("Error reading CPU Freq - %s" % str(e))
+            return 9999
         
     #
     # UDP messaging functions.

@@ -90,7 +90,7 @@ class RFM98W_Serial(object):
         self.lora.set_register(0x31,0x00) # Set Continuous Transmit Mode
 
         # Get the IC temperature
-        self.temperature = self.get_temperature()
+        self.get_temperature()
 
         self.lora.set_freq(self.frequency)
         logging.info(f"RFM98W - Frequency set to: {self.frequency} MHz.")
@@ -213,12 +213,12 @@ class RFM98W_Serial(object):
         Get radio module temperature (uncalibrated)
         """
         # Make temperature measurement
-        temperature = self.lora.get_register(0x3c) * (-1)
-        if temperature < -63:
-            temperature += 255
+        self.temperature = self.lora.get_register(0x3c) * (-1)
+        if self.temperature < -63:
+            self.temperature += 255
         logging.info(f"RFM98W - Temperature: {self.temperature} C")
 
-        return temperature
+        return self.temperature
 
 class SerialOnly(object):
     """

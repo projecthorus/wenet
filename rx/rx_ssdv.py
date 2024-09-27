@@ -212,7 +212,7 @@ while True:
 
 			# Only proceed if there are no decode errors.
 			if packet_info['error'] != 'None':
-				logging.error(message['error'])
+				logging.error(packet_info['error'])
 				continue
 
 			if (packet_info['image_id'] != current_image) or (packet_info['callsign'] != current_callsign) :
@@ -264,4 +264,5 @@ while True:
 			logging.debug("Unknown Packet Format.")
 	
 	except Exception as e:
+		logging.exception(e)
 		logging.error("Error handling packet - " + str(e))

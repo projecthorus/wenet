@@ -133,6 +133,25 @@ def handle_gps_telemetry(gps_data):
 
     if sondehub:
         # Add to the SondeHub-Amateur uploader!
+
+        _extra_fields = {
+                'ascent_rate': round(gps_data['ascent_rate'],1),
+                'speed': round(gps_data['ground_speed'],1)
+        }
+        # Add in new fields from 2024-09 if they exist and are valid
+        if 'radio_temp' in gps_data:
+            if gps_data['radio_temp'] > -999.0:
+                _extra_fields['radio_temp'] = gps_data['radio_temp']
+            
+            if gps_data['cpu_temp'] > -999.0:
+                _extra_fields['cpu_temp'] = gps_data['cpu_temp']
+
+            _extra_fields['cpu_speed'] = gps_data['cpu_speed']
+            _extra_fields['load_avg_1'] = gps_data['load_avg_1']
+            _extra_fields['load_avg_5'] = gps_data['load_avg_5']
+            _extra_fields['load_avg_15'] = gps_data['load_avg_15']
+            _extra_fields['disk_percent'] = gps_data['disk_percent']
+
         sondehub.add_telemetry(
             current_callsign + "-Wenet",
             gps_data['timestamp'] + "Z",
@@ -141,10 +160,7 @@ def handle_gps_telemetry(gps_data):
             round(gps_data['altitude'],1),
             sats = gps_data['numSV'],
             heading = round(gps_data['heading'],1),
-            extra_fields = {
-                'ascent_rate': round(gps_data['ascent_rate'],1),
-                'speed': round(gps_data['ground_speed'],1)
-            },
+            extra_fields = _extra_fields,
             modulation = "Wenet",
             frequency = round(current_modem_stats['fcentre']/1e6, 5),
             snr = round(current_modem_stats['snr'],1)
@@ -317,7 +333,7 @@ if __name__ == "__main__":
     parser.add_argument("callsign", help="SondeHub-Amateur Uploader Callsign")
     parser.add_argument("-l", "--listen_port", default=5003, help="Port to run Web Server on. (Default: 5003)")
     parser.add_argument("-v", "--verbose", action='store_true', help="Enable debug output.")
-    parser.add_argument("--no_sondehub", action='store_true', help="Disable SondeHub-Amateur position upload.")
+    parser.add_argument("--no_sondehub", default=False, action='store_true', help="Disable SondeHub-Amateur position upload.")
     parser.add_argument("-u", "--udp_port", default=None, type=int, help="Port to emit Horus UDP packets on. (Default: 0 (disabled), Typical: 55673)")
     args = parser.parse_args()
 
