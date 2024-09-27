@@ -54,6 +54,8 @@ class RFM98W_Serial(object):
 
         self.tx_packet_count = 0
 
+        self.temperature = -999
+
         self.start()
     
 
@@ -86,6 +88,9 @@ class RFM98W_Serial(object):
         # Refer https://cdn.sparkfun.com/assets/learn_tutorials/8/0/4/RFM95_96_97_98W.pdf
         self.lora.set_register(0x01,0x00) # FSK Sleep Mode
         self.lora.set_register(0x31,0x00) # Set Continuous Transmit Mode
+
+        # Get the IC temperature
+        self.temperature = self.get_temperature()
 
         self.lora.set_freq(self.frequency)
         logging.info(f"RFM98W - Frequency set to: {self.frequency} MHz.")
@@ -203,6 +208,17 @@ class RFM98W_Serial(object):
                 logging.info(f"RFM98W - Reinitialising Radio at {self.tx_packet_count} packets.")
                 self.start()
 
+    def get_temperature(self):
+        """
+        Get radio module temperature (uncalibrated)
+        """
+        # Make temperature measurement
+        temperature = self.lora.get_register(0x3c) * (-1)
+        if temperature < -63:
+            temperature += 255
+        logging.info(f"RFM98W - Temperature: {self.temperature} C")
+
+        return temperature
 
 class SerialOnly(object):
     """
