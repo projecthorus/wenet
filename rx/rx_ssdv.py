@@ -152,6 +152,11 @@ temp_f = open("rxtemp.bin",'wb')
 
 
 while True:
+
+	# These reads can hang if the rtl_sdr locks up
+	# We should add some kind of watchdog system around this, so if we don't seee
+	# any packets for X minutes, the process exits, and is (hopefully) restarted by systemd.
+
 	if args.hex:
 		# Incoming data is as a hexadecimal string.
 		# We can read these in safely using sys.stdin.readline(), 
