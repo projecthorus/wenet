@@ -15,8 +15,13 @@ MYCALL=CHANGEME
 # The normal receive frequency used by Project Horus is 443.5 MHz
 RXFREQ=443500000
 
+# SDR Type. Set this to RTLSDR for RTL-SDR use or KA9Q for KA9Q-Radio use
+SDR_TYPE=RTLSDR
+#SDR_TYPE=KA9Q
+
 # RTLSDR Device ID. Leave this at 0 if you don't want to use a particular device
 DEVICE=0
+#DEVICE=wenet-1-pcm.local
 
 # Receiver Gain. Set this to 0 to use automatic gain control, otherwise if running a
 # preamplifier, you may want to experiment with lower gain settings to optimize
@@ -55,19 +60,43 @@ docker stop wenet || true && docker rm wenet || true
 
 # Start the container!
 echo "Starting new Wenet instance..."
-docker run -d \
-	--name wenet \
-	-e MYCALL=$MYCALL \
-	-e RXFREQ=$RXFREQ \
-	-e GAIN=$GAIN \
-	-e BIAS=$BIAS \
-	-e BAUD_RATE=$BAUD_RATE \
-	-e OVERSAMPLING=$OVERSAMPLING \
-	-e DEVICE=$DEVICE \
-	-e UDP_PORT=$UDP_PORT \
-	-v ~/wenet/rx_images/:/opt/wenet/rx_images/ \
-	--device /dev/bus/usb \
-	-p 5003:5003 \
-	ghcr.io/projecthorus/wenet:latest
+if [ "SDR_TYPE" = "RTLSDR" ] ; then
+	docker run -d \
+		--name wenet \
+		-e MYCALL=$MYCALL \
+		-e RXFREQ=$RXFREQ \
+		-e GAIN=$GAIN \
+		-e BIAS=$BIAS \
+		-e BAUD_RATE=$BAUD_RATE \
+		-e OVERSAMPLING=$OVERSAMPLING \
+		-e DEVICE=$DEVICE \
+		-e UDP_PORT=$UDP_PORT \
+		-e SDR_TYPE=$SDR_TYPE \
+		-v ~/wenet/rx_images/:/opt/wenet/rx_images/ \
+		--device /dev/bus/usb \
+		-p 5003:5003
+		wenet
+elif [ "$SDR_TYPE" = "KA9Q" ] ; then
+	docker run -d \
+		--name wenet \
+		-e MYCALL=$MYCALL \
+		-e RXFREQ=$RXFREQ \
+		-e GAIN=$GAIN \
+		-e BIAS=$BIAS \
+		-e BAUD_RATE=$BAUD_RATE \
+		-e OVERSAMPLING=$OVERSAMPLING \
+		-e DEVICE=$DEVICE \
+		-e UDP_PORT=$UDP_PORT \
+		-e SDR_TYPE=$SDR_TYPE \
+		-v ~/wenet/rx_images/:/opt/wenet/rx_images/ \
+		-v /var/run/dbus:/var/run/dbus \
+		-v /var/run/avahi-daemon/socket:/var/run/avahi-daemon/socket \
+		--device /dev/bus/usb \
+		--network host \
+		wenet
+else
+	echo "No valid SDR type specified! Please enter RTLSDR or KA9Q!"
+	exit 0
+fi
 
 echo "Navigate to http://localhost:5003/ in your web browser to see the Wenet interface!"
