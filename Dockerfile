@@ -17,7 +17,8 @@ RUN apt-get update && \
     python3-pip \
     python3-setuptools \
     python3-numpy \
-    python3-wheel && \
+    python3-wheel \
+    libairspy-dev libairspyhf-dev libavahi-client-dev libbsd-dev libfftw3-dev libhackrf-dev libiniparser-dev libncurses5-dev libopus-dev librtlsdr-dev libusb-1.0-0-dev libusb-dev portaudio19-dev libasound2-dev uuid-dev rsync && \
   rm -rf /var/lib/apt/lists/*
 
 # Compile and install rtl-sdr.
@@ -36,6 +37,15 @@ RUN git clone https://github.com/fsphil/ssdv.git /root/ssdv && \
   DESTDIR=/root/target make install && \
   rm -rf /root/ssdv
 
+# Compile and install pcmcat and tune from KA9Q-Radio
+RUN git clone https://github.com/ka9q/ka9q-radio.git /root/ka9q-radio && \
+  cd /root/ka9q-radio && \
+  make -f Makefile.linux pcmcat tune && \
+  mkdir -p /root/target/usr/local/bin/ && \
+  cp pcmcat /root/target/usr/local/bin/ && \
+  cp tune /root/target/usr/local/bin/ && \
+  rm -rf /root/ka9q-radio
+
 # Install Python packages.
 # Removed numpy from this list, using system packages.
 # --no-binary numpy
@@ -47,6 +57,7 @@ RUN --mount=type=cache,target=/root/.cache/pip pip3 install \
     simple-websocket \
     requests \
     sondehub
+
 
 # Copy in wenet.
 COPY . /root/wenet
@@ -69,8 +80,14 @@ RUN apt-get update && \
   libusb-1.0-0 \
   python3 \
   python3-numpy \
+  libbsd0 \
+  avahi-utils \
+  libnss-mdns \
   tini && \
   rm -rf /var/lib/apt/lists/*
+
+# Allow mDNS resolution
+RUN sed -i -e 's/files dns/files mdns4_minimal [NOTFOUND=return] dns/g' /etc/nsswitch.conf
 
 # Copy compiled dependencies from the build container.
 COPY --from=build /root/target /
