@@ -38,12 +38,15 @@ RUN git clone https://github.com/fsphil/ssdv.git /root/ssdv && \
   rm -rf /root/ssdv
 
 # Compile and install pcmcat and tune from KA9Q-Radio
-RUN git clone https://github.com/ka9q/ka9q-radio.git /root/ka9q-radio && \
+#RUN git clone https://github.com/ka9q/ka9q-radio.git /root/ka9q-radio && \
+RUN git clone https://github.com/fventuri/ka9q-radio.git /root/ka9q-radio && \
   cd /root/ka9q-radio && \
+  git checkout sdrplay && \
   make -f Makefile.linux pcmcat tune && \
   mkdir -p /root/target/usr/local/bin/ && \
   cp pcmcat /root/target/usr/local/bin/ && \
   cp tune /root/target/usr/local/bin/ && \
+#  cp control /root/target/usr/local/bin/ && \
   rm -rf /root/ka9q-radio
 
 # Install Python packages.
@@ -83,6 +86,8 @@ RUN apt-get update && \
   libbsd0 \
   avahi-utils \
   libnss-mdns \
+  inetutils-ping \
+  nano \
   tini && \
   rm -rf /var/lib/apt/lists/*
 
