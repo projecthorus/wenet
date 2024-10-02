@@ -31,21 +31,31 @@ class WenetPiCamera2(object):
     Uses the new libcamera-based PiCamera2 library.
     Captures multiple images, picks the best, then 
     transmits it via a PacketTX object. 
-
-
     """
+
+    # White balance text to enum lookup
+    wb_lookup = {
+        "auto": controls.AwbModeEnum.Auto,
+        "incandescent": controls.AwbModeEnum.Incandescent,
+        "fluorescent": controls.AwbModeEnum.Fluorescent,
+        "tungsten": controls.AwbModeEnum.Tungsten,
+        "indoor": controls.AwbModeEnum.Indoor,
+        "daylight": controls.AwbModeEnum.Daylight,
+        "cloudy": controls.AwbModeEnum.Cloudy
+    }
 
     def __init__(self,
                 callsign = "N0CALL",
-                tx_resolution=(1936,1088), 
+                tx_resolution=0.5, 
                 num_images=1,
                 image_delay=0.0, 
                 vertical_flip = False, 
                 horizontal_flip = False,
-                greyworld = False,
-                lens_position = 0.0,
+                whitebalance = 'auto',
+                lens_position = -1,
                 temp_filename_prefix = 'picam_temp',
-                debug_ptr = None
+                debug_ptr = None,
+                init_retries = 10
                 ):
 
         """ Instantiate a WenetPiCam Object
@@ -53,9 +63,9 @@ class WenetPiCamera2(object):
 
             Keyword Arguments:
             callsign: The callsign to be used when converting images to SSDV. Must be <=6 characters in length.
-            tx_resolution: Tuple (x,y) containing desired image *transmit* resolution.
+            tx_resolution: Either a tuple (x,y) containing desired image *transmit* resolution, OR a scaling factor from full size.
                         NOTE: both x and y need to be multiples of 16 to be used with SSDV.
-                        NOTE: This will resize with NO REGARD FOR ASPECT RATIO - it's up to you to get that right.
+                        NOTE: If you manually specify a transmit resolution, this will resize with NO REGARD FOR ASPECT RATIO - it's up to you to get that right.
 
             num_images: Number of images to capture in sequence when the 'capture' function is called.
                         The 'best' (largest filesize) image is selected and saved.
@@ -64,9 +74,10 @@ class WenetPiCamera2(object):
             vertical_flip: Flip captured images vertically.
             horizontal_flip: Flip captured images horizontally.
                             Used to correct for picam orientation.
-            greyworld: Use Greyworld AWB setting, for IR-filtered images.
+            whitebalance: White balance mode - allowed values: Auto, Incandescent, Tungesten, Fluorescent, Indoor, Daylight, Cloudy 
             lens_position: Lens Position setting (float), 0.0 = Infinity, 10 = very close.
                    Only usable on Pi Camera v3 modules.
+                   Set to -1 to use continuous autofocus mode.
 
             temp_filename_prefix: prefix used for temporary files.
 
@@ -81,22 +92,57 @@ class WenetPiCamera2(object):
         self.num_images = num_images
         self.image_delay = image_delay
         self.callsign = callsign
-        self.tx_resolution = tx_resolution
+        self.tx_resolution_init = tx_resolution
         self.horizontal_flip = horizontal_flip
         self.vertical_flip = vertical_flip
-        self.greyworld = greyworld
         self.lens_position = lens_position
+        self.autofocus_mode = False
 
-        self.init_camera()
+        if whitebalance.lower() in self.wb_lookup:
+            self.whitebalance = self.wb_lookup[whitebalance.lower()]
+        else:
+            self.whitebalance = self.wb_lookup['auto']
+
+
+        # If we startup too early, the camera is sometimes not available to us.
+        # Try and initialise for a while with breaks in between until we can talk to it...
+        while init_retries > 0:
+            try: 
+                self.init_camera()
+                break
+            except Exception as e:
+                self.debug_message(f"Error initialising camera, retrying in 10 seconds: - {str(e)}")
+            time.sleep(10)
+            init_retries -= 1
 
 
     def init_camera(self):
         # Attempt to start picam.
+
+        # Shutdown any previous instances of the camera object.
+        # If we don't do this, we can end up with all sorts of fun errors.
+        try:
+            self.cam.close()
+            self.debug_message("Closed broken instance of Picamera2")
+        except:
+            pass
+
         self.cam = Picamera2()
 
         self.camera_properties = self.cam.camera_properties
 
-        self.debug_ptr("Camera Resolution: " + str(self.camera_properties['PixelArraySize']))
+        self.debug_ptr("Camera Native Resolution: " + str(self.camera_properties['PixelArraySize']))
+
+        # If the user has explicitly specified the transmit image resolution, use it.
+        if type(self.tx_resolution_init) == tuple:
+            self.tx_resolution = self.tx_resolution_init
+            self.debug_ptr(f"Transmit Resolution set to {str(self.tx_resolution)}")
+        # Otherwise, has the user provided a floating point scaling factor?
+        elif type(self.tx_resolution_init) == float:
+            res_x = 16*int(self.camera_properties['PixelArraySize'][0]*self.tx_resolution_init/16)
+            res_y = 16*int(self.camera_properties['PixelArraySize'][1]*self.tx_resolution_init/16)
+            self.tx_resolution = (res_x, res_y)
+            self.debug_ptr(f"Transmit Resolution set to {str(self.tx_resolution)}, scaled {self.tx_resolution_init} from native.")
 
         # Configure camera, including flip settings.
         capture_config = self.cam.create_still_configuration(
@@ -105,22 +151,27 @@ class WenetPiCamera2(object):
         self.cam.configure(capture_config)
 
         # Set other settings, White Balance, exposure metering, etc.
+
         self.cam.set_controls(
-            {'AwbMode': controls.AwbModeEnum.Daylight,
+            {'AwbMode': self.whitebalance,
             'AeMeteringMode': controls.AeMeteringModeEnum.Matrix,
             'NoiseReductionMode': controls.draft.NoiseReductionModeEnum.Off}
             )
 
         # Set Pi Camera 3 lens position
         if 'LensPosition' in self.cam.camera_controls:
-            self.debug_ptr("Configured lens position to " + str(self.lens_position))
-            self.cam.set_controls({"AfMode": controls.AfModeEnum.Manual, "LensPosition": self.lens_position})
+            if self.lens_position>=0.0:
+                self.debug_ptr("Configured lens position to " + str(self.lens_position))
+                self.cam.set_controls({"AfMode": controls.AfModeEnum.Manual, "LensPosition": self.lens_position})
+            else:
+                self.cam.set_controls({"AfMode": controls.AfModeEnum.Continuous})
 
-        # Enable the camera, effectively opening the 'shutter'.
-        # This lets the camera gain control algs start to settle.
-        #self.cam.start()
+        # In autofocus mode, we need to start the camera now, so it can start figuring out its focus.
+        if 'LensPosition' in self.cam.camera_controls and self.lens_position<0.0:
+            self.debug_message("Enabling camera for image capture")
+            self.cam.start()
 
-        # NOTE - Trying out starting and stopping the camera just around image capture time.
+        # If we are not in autofocus mode, we start the camera only when we need it.
         # This may help deal with crashes after the camera is running for a long time, and also
         # may help decrease CPU usage a little.
 
@@ -138,10 +189,16 @@ class WenetPiCamera2(object):
             print(message)
 
     def close(self):
-        self.cam.stop()
-        self.cam.close()
+        try:
+            self.cam.stop()
+        except:
+            self.debug_message("Stopping camera object failed.")
+        try:
+            self.cam.close()
+        except:
+            self.debug_message("Closing camera object failed.")
 
-    def capture(self, filename='picam.jpg', quality=90, bayer=False):
+    def capture(self, filename='picam.jpg', quality=90):
         """ Capture an image using the PiCam
             
             Keyword Arguments:
@@ -152,25 +209,32 @@ class WenetPiCamera2(object):
         self.cam.options['quality'] = quality
 
         # Set other settings, White Balance, exposure metering, etc.
+        # TODO - Maybe expose some of these settings?
         self.cam.set_controls(
-            {'AwbMode': controls.AwbModeEnum.Daylight,
+            {'AwbMode': self.whitebalance,
             'AeMeteringMode': controls.AeMeteringModeEnum.Matrix,
             'NoiseReductionMode': controls.draft.NoiseReductionModeEnum.Off}
             )
 
-        # Set Pi Camera 3 lens position
+        # Set Pi Camera 3 lens position, or ensure we are in continuous autofocus mode.
         if 'LensPosition' in self.cam.camera_controls:
-            self.debug_ptr("Configured lens position to " + str(self.lens_position))
-            self.cam.set_controls({"AfMode": controls.AfModeEnum.Manual, "LensPosition": self.lens_position})
+            if self.lens_position>=0.0:
+                self.debug_ptr("Configured lens position to " + str(self.lens_position))
+                self.cam.set_controls({"AfMode": controls.AfModeEnum.Manual, "LensPosition": self.lens_position})
+            else:
+                self.cam.set_controls({"AfMode": controls.AfModeEnum.Continuous})
 
-        self.debug_message("Enabling camera for image capture")
 
-        try:
-            self.cam.start()
-        except Exception as e:
-            self.debug_message("Could not enable camera! - " + str(e))
-            sleep(1)
-            return False
+        # If we're not using autofocus, then camera would not have been started yet.
+        # Start it now.
+        if 'LensPosition' not in self.cam.camera_controls or self.lens_position>=0.0:
+            try:
+                self.debug_message("Enabling camera for image capture")
+                self.cam.start()
+            except Exception as e:
+                self.debug_message("Could not enable camera! - " + str(e))
+                sleep(1)
+                return False
 
         sleep(3)
 
@@ -178,6 +242,7 @@ class WenetPiCamera2(object):
         for i in range(self.num_images):
             self.debug_message("Capturing Image %d of %d" % (i+1,self.num_images))
             # Wrap this in error handling in case we lose the camera for some reason.
+
             try:
                 self.cam.capture_file("%s_%d.jpg" % (self.temp_filename_prefix,i))
                 print(f"Image captured: {time.time()}")
@@ -188,8 +253,9 @@ class WenetPiCamera2(object):
                 # Immediately return false. Not much point continuing to try and capture images.
                 return False
         
-        self.debug_message("Disabling camera.")
-        self.cam.stop()
+        if 'LensPosition' not in self.cam.camera_controls or self.lens_position>=0.0:
+            self.debug_message("Disabling camera.")
+            self.cam.stop()
 
         # Otherwise, continue to pick the 'best' image based on filesize.
         self.debug_message("Choosing Best Image.")
@@ -227,9 +293,9 @@ class WenetPiCamera2(object):
 
         # Resize image to the desired resolution.
         self.debug_message("Resizing image.")
-        return_code = os.system("convert %s -resize %dx%d\! picam_temp.jpg" % (filename, self.tx_resolution[0], self.tx_resolution[1]))
+        return_code = os.system("timeout -k 5 180 convert %s -scale %dx%d\! picam_temp.jpg" % (filename, self.tx_resolution[0], self.tx_resolution[1]))
         if return_code != 0:
-            self.debug_message("Resize operation failed!")
+            self.debug_message("Resize operation failed! (Possible kernel Oops? Maybe set arm_freq to 700 MHz)")
             return "FAIL"
 
         # Get non-extension part of filename.
@@ -281,7 +347,11 @@ class WenetPiCamera2(object):
             capture_filename = destination_directory + "/%s_picam.jpg" % capture_time
 
             # Attempt to capture.
-            capture_successful = self.capture(capture_filename)
+            try:
+                capture_successful = self.capture(capture_filename)
+            except Exception as e:
+                self.debug_message(f"Exception on capture - {str(e)}")
+                capture_successful = False
 
             # If capture was unsuccessful, try again in a little bit
             if not capture_successful:
@@ -289,8 +359,13 @@ class WenetPiCamera2(object):
 
                 self.debug_message("Capture failed! Attempting to reset camera...")
 
+                # Try and stop, then close the camera object.
                 try:
                     self.cam.stop()
+                except:
+                    self.debug_message("Stopping camera object failed.")
+                
+                try:
                     self.cam.close()
                 except:
                     self.debug_message("Closing camera object failed.")
@@ -406,7 +481,7 @@ class WenetPiCamera2(object):
             return -1
 
 
-# Basic transmission test script.
+# Basic transmission test script. TODO - Fix this, this is all incorrect..
 if __name__ == "__main__":
     import PacketTX
     import argparse
@@ -427,7 +502,7 @@ if __name__ == "__main__":
     tx.start_tx()
 
 
-    picam = WenetPiCam(src_resolution=(1920,1088), 
+    picam = WenetPiCamera2(src_resolution=(1920,1088), 
         tx_resolution=(1920,1088), 
         callsign=callsign, 
         num_images=5, 

@@ -152,6 +152,11 @@ temp_f = open("rxtemp.bin",'wb')
 
 
 while True:
+
+	# These reads can hang if the rtl_sdr locks up
+	# We should add some kind of watchdog system around this, so if we don't seee
+	# any packets for X minutes, the process exits, and is (hopefully) restarted by systemd.
+
 	if args.hex:
 		# Incoming data is as a hexadecimal string.
 		# We can read these in safely using sys.stdin.readline(), 
@@ -212,7 +217,7 @@ while True:
 
 			# Only proceed if there are no decode errors.
 			if packet_info['error'] != 'None':
-				logging.error(message['error'])
+				logging.error(packet_info['error'])
 				continue
 
 			if (packet_info['image_id'] != current_image) or (packet_info['callsign'] != current_callsign) :
@@ -264,4 +269,5 @@ while True:
 			logging.debug("Unknown Packet Format.")
 	
 	except Exception as e:
+		logging.exception(e)
 		logging.error("Error handling packet - " + str(e))

@@ -100,8 +100,21 @@
                     var ascent = msg.ascent_rate.toFixed(1);
                     var numSV = msg.numSV.toFixed(0);
 
-                    var _new_desc = msg.timestamp + "Z " + lat + ", " + lon + " " + alt + "m " + ascent + " m/s " + numSV + " SVs";
+                    var _new_desc = msg.timestamp + "Z: " + lat + ", " + lon + " " + alt + "m " + ascent + " m/s " + numSV + " SVs";
                     $('#gps-data').html(_new_desc);
+
+                    var _new_gps_detailed = msg.timestamp + "Z: "
+                    if(msg.hasOwnProperty('radio_temp')){
+                        _new_gps_detailed += "Radio Temp: " + msg.radio_temp.toFixed(1) + "˚C"
+                    }
+                    if(msg.hasOwnProperty('cpu_temp')){
+                        _new_gps_detailed += ", CPU Temp: " + msg.cpu_temp.toFixed(1) + "˚C"
+                    }
+                    _new_gps_detailed += ", Load Avgs: " + msg.load_avg_1.toFixed(2) + "/" + msg.load_avg_5.toFixed(2) + "/" + msg.load_avg_15.toFixed(2)
+                    _new_gps_detailed += ", Disk Usage: " + msg.disk_percent.toFixed(2) +"%"
+                    _new_gps_detailed += ", CPU Speed: " + msg.cpu_speed +" MHz"
+                    $('#detail_gps_telem_data').html(_new_gps_detailed);
+
                 }
             });
 
@@ -207,7 +220,7 @@
             var text_messages = [];
 
             socket.on('text_update', function(msg) {
-                var _text = "Msg #" + msg.id + ": " + msg.text;
+                var _text = msg.timestamp + " Msg #" + msg.id + ": " + msg.text;
                 text_messages.push(_text);
                 if(text_messages.length > 10){
                     text_messages.shift();
@@ -270,6 +283,11 @@
         <div class="row">
             <div class='col-12'>
                 <div id="image_telem_data"></div>
+            </div>
+        </div>
+        <div class="row">
+            <div class='col-12'>
+                <div id="detail_gps_telem_data"></div>
             </div>
         </div>
         <div class="row">

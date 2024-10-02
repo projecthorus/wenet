@@ -21,13 +21,16 @@ import os
 import datetime
 import crcmod
 import json
+import shutil
 import socket
 import struct
+import subprocess
 import traceback
 from time import sleep
 from threading import Thread
 import numpy as np
 from ldpc_encoder import *
+from radio_wrappers import *
 from queue import Queue
 
 class PacketTX(object):
@@ -75,23 +78,16 @@ class PacketTX(object):
 
     # WARNING: 115200 baud is ACTUALLY 115386.834 baud, as measured using a freq counter.
     def __init__(self,
-        serial_port="/dev/ttyAMA0", 
-        serial_baud=115200, 
+        # Radio wrapper, for radio setup and modulation.
+        radio,
+        # User callsign, should be used in the idle sequence, but currently isn't...
+        callsign="N0CALL",
         payload_length=256, 
         fec=True, 
-        debug = False, 
-        callsign="N0CALL",
         udp_listener = None,
         log_file = None):
         
-        # Instantiate our low-level transmit interface, be it a serial port, or the BinaryDebug class.
-        if debug == True:
-            self.s = BinaryDebug()
-            self.debug = True
-        else:
-            self.debug = False
-            self.s = serial.Serial(serial_port,serial_baud)
-
+        self.radio = radio
 
         self.payload_length = payload_length
         self.callsign = callsign.encode('ascii')
@@ -103,6 +99,7 @@ class PacketTX(object):
 
         if log_file != None:
             self.log_file = open(log_file,'a')
+            print(f"Opened log file {log_file}")
             self.log_file.write("Started Transmitting at %s\n" % datetime.datetime.utcnow().isoformat())
         else:
             self.log_file = None
@@ -159,19 +156,16 @@ class PacketTX(object):
         while self.transmit_active:
             if self.telemetry_queue.qsize()>0:
                 packet = self.telemetry_queue.get_nowait()
-                self.s.write(packet)
+                self.radio.transmit_packet(packet)
             elif self.ssdv_queue.qsize()>0:
                 packet = self.ssdv_queue.get_nowait()
-                self.s.write(packet)
+                self.radio.transmit_packet(packet)
             else:
-                if not self.debug:
-                    self.s.write(self.idle_message)
-                else:
-                    # TODO: Tune this value.
-                    sleep(0.05)
+                self.radio.transmit_packet(self.idle_message)
+                time.sleep(0.1)
         
         print("Closing Thread")
-        self.s.close()
+        self.radio.shutdown()
 
 
     def close(self):
@@ -256,6 +250,7 @@ class PacketTX(object):
 
         if self.log_file != None:
             self.log_file.write(datetime.datetime.now().isoformat() + "," + log_string + "\n")
+            self.log_file.flush()
 
         print(log_string)
 
@@ -263,21 +258,39 @@ class PacketTX(object):
     def transmit_gps_telemetry(self, gps_data):
         """ Generate and Transmit a GPS Telemetry Packet.
 
+        Host platform CPU speed, temperature and load averages are collected and included in this packet too.
+
         Keyword Arguments:
         gps_data: A dictionary, as produced by the UBloxGPS class. It must have the following fields:
                   latitude, longitude, altitude, ground_speed, ascent_rate, heading, gpsFix, numSV,
                   week, iTOW, leapS, dynamic_model.
+        
 
         The generated packet format is in accordance with the specification in:
-        https://docs.google.com/document/d/12230J1X3r2-IcLVLkeaVmIXqFeo3uheurFakElIaPVo/edit?usp=sharing
+        https://github.com/projecthorus/wenet/wiki/Modem-&-Packet-Format-Details#0x01---gps-telemetry
 
         The corresponding decoder for this packet format is within rx/WenetPackets.py, in the function
         gps_telemetry_decoder
 
         """
 
+        # Collect non-GPS information to add to the packet.
+        _radio_temp = self.radio.temperature
+        _cpu_speed = self.get_cpu_speed()
+        _cpu_temp = self.get_cpu_temperature()
+        _load_avg_1, _load_avg_5, _load_avg_15 = os.getloadavg()
+
+        # Collect disk usage information
+        # Unsure of the likelyhood of this failing, but wrapping it in a try/except anyway
         try:
-            gps_packet = struct.pack(">BHIBffffffBBB",
+            _disk_usage = shutil.disk_usage(".")
+            _disk_percent = 100.0 * (_disk_usage.used / _disk_usage.total)
+        except:
+            _disk_percent = -1.0
+
+        # Construct the packet
+        try:
+            gps_packet = struct.pack(">BHIBffffffBBBffHffff",
                 1,  # Packet ID for the GPS Telemetry Packet.
                 gps_data['week'],
                 int(gps_data['iTOW']*1000), # Convert the GPS week value to milliseconds, and cast to an int.
@@ -290,7 +303,15 @@ class PacketTX(object):
                 gps_data['ascent_rate'],
                 gps_data['numSV'],
                 gps_data['gpsFix'],
-                gps_data['dynamic_model']
+                gps_data['dynamic_model'],
+                # New fields 2024-09
+                _radio_temp,
+                _cpu_temp,
+                int(_cpu_speed),
+                _load_avg_1,
+                _load_avg_5,
+                _load_avg_15,
+                _disk_percent
                 )
 
             self.queue_telemetry_packet(gps_packet)
@@ -430,6 +451,25 @@ class PacketTX(object):
         self.queue_telemetry_packet(_packet, repeats=repeats)
 
 
+    def get_cpu_temperature(self):
+        """ Grab the temperature of the RPi CPU """
+        try:
+            data = subprocess.check_output("/usr/bin/vcgencmd measure_temp", shell=True)
+            temp = data.decode().split('=')[1].split('\'')[0]
+            return float(temp)
+        except Exception as e:
+            print("Error reading temperature - %s" % str(e))
+            return -999.0
+
+    def get_cpu_speed(self):
+        """ Get the current CPU Frequency """
+        try:
+            data = subprocess.check_output("cat /sys/devices/system/cpu/cpu0/cpufreq/scaling_cur_freq", shell=True)
+            freq = int(data.decode().strip())/1000
+            return freq
+        except Exception as e:
+            print("Error reading CPU Freq - %s" % str(e))
+            return 9999
         
     #
     # UDP messaging functions.
@@ -534,16 +574,39 @@ if __name__ == "__main__":
     import argparse
 
     parser = argparse.ArgumentParser()
-    parser.add_argument("--txport", default="/dev/ttyAMA0", type=str, help="Transmitter serial port. Defaults to /dev/ttyAMA0")
-    parser.add_argument("--baudrate", default=115200, type=int, help="Transmitter baud rate. Defaults to 115200 baud.")
+    parser.add_argument("--rfm98w", default=None, type=int, help="If set, configure a RFM98W on this SPI device number.")
+    parser.add_argument("--frequency", default=443.500, type=float, help="Transmit Frequency (MHz). (Default: 443.500 MHz)")
+    parser.add_argument("--baudrate", default=115200, type=int, help="Wenet TX baud rate. (Default: 115200).")
+    parser.add_argument("--serial_port", default="/dev/ttyAMA0", type=str, help="Serial Port for modulation.")
+    parser.add_argument("--tx_power", default=17, type=int, help="Transmit power in dBm (Default: 17 dBm, 50mW. Allowed values: 2-17)")
+    parser.add_argument("-v", "--verbose", action='store_true', default=False, help="Show additional debug info.")
     args = parser.parse_args()
-    debug_output = False # If True, packet bits are saved to debug.bin as one char per bit.
 
+    if args.verbose:
+        logging_level = logging.DEBUG
+    else:
+        logging_level = logging.INFO
+
+    # Set up logging
+    logging.basicConfig(format="%(asctime)s %(levelname)s: %(message)s", level=logging_level)
+
+    radio = None
+
+    if args.rfm98w is not None:
+        radio = RFM98W_Serial(
+            spidevice = args.rfm98w,
+            frequency = args.frequency,
+            baudrate = args.baudrate,
+            serial_port = args.serial_port,
+            tx_power_dbm = args.tx_power
+        )
+    # Other radio options would go here.
+    else:
+        logging.critical("No radio type specified! Exiting")
+        sys.exit(1)
 
     tx = PacketTX(
-        debug=debug_output,
-        serial_port=args.txport,
-        serial_baud=args.baudrate,
+        radio=radio,
         udp_listener=55674)
     tx.start_tx()
 
@@ -556,4 +619,4 @@ if __name__ == "__main__":
 
     except KeyboardInterrupt:
         tx.close()
-        print("Closing")
+        logging.info("Closing")
