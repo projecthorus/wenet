@@ -44,22 +44,40 @@ SDR_RATE=$(("$BAUD_RATE" * "$OVERSAMPLING"))
 # The fsk_demod acquisition window is from Rs/2 to Fs/2 - Rs.
 # Given Fs is Rs * Os  (Os = oversampling), we can calculate the required tuning offset with the equation:
 # Offset = Fcenter - Rs*(Os/4 - 0.25)
-RX_SSB_FREQ=$(echo "$RXFREQ - $BAUD_RATE * ($OVERSAMPLING/4 - 0.25)" | bc)
+# /1 to return integer
+RX_SSB_FREQ=$(echo "($RXFREQ - $BAUD_RATE * ($OVERSAMPLING/4 - 0.25))/1" | bc)
 
 echo "Using SDR Sample Rate: $SDR_RATE Hz"
 echo "Using SDR Centre Frequency: $RX_SSB_FREQ Hz"
 
-if [ "$BIAS" = "1" ]; then
-  echo "Enabling Bias Tee"
-  rtl_biast -d "$DEVICE" -b 1
-fi
+if [ "$SDR_TYPE" = "RTLSDR" ] ; then
+  if [ "$BIAS" = "1" ]; then
+    echo "Enabling Bias Tee"
+    rtl_biast -d "$DEVICE" -b 1
+  fi
 
-# Start up the receive chain.
-echo "Using Complex Samples."
-rtl_sdr -d "$DEVICE" -s "$SDR_RATE" -f "$RX_SSB_FREQ" -g "$GAIN" - | \
-./fsk_demod --cu8 -s --stats=100 2 "$SDR_RATE" "$BAUD_RATE" - - 2> >(python3 fskstatsudp.py --rate 1 --freq $RX_SSB_FREQ --samplerate $SDR_RATE) | \
-./drs232_ldpc - -  -vv 2> /dev/null | \
-python3 rx_ssdv.py --partialupdate 16 --headless
+  # Start up the receive chain.
+  echo "Using Complex Samples."
+  rtl_sdr -d "$DEVICE" -s "$SDR_RATE" -f "$RX_SSB_FREQ" -g "$GAIN" - | \
+  ./fsk_demod --cu8 -s --stats=100 2 "$SDR_RATE" "$BAUD_RATE" - - 2> >(python3 fskstatsudp.py --rate 1 --freq $RX_SSB_FREQ --samplerate $SDR_RATE) | \
+  ./drs232_ldpc - -  -vv 2> /dev/null | \
+  python3 rx_ssdv.py --partialupdate 16 --headless
+elif [ "$SDR_TYPE" = "KA9Q" ] ; then
+  # Establish a channel
+  echo -n "Tuning receiver -- " 
+  avahi-resolve-host-name sdrplay.local
+  tune --samprate "$SDR_RATE" --mode wenet --frequency "$RX_SSB_FREQ" --ssrc "$RX_SSB_FREQ" --radio "$DEVICE"
+
+  # Start receiver
+  echo "Starting pcmcat and demodulator"
+  PCMDEVICE=$(echo "$DEVICE" | sed 's/.local/-pcm.local/g')
+  pcmcat -s "$RX_SSB_FREQ" "$PCMDEVICE" | \
+  ./fsk_demod --cs16 -s --stats=100 2 "$SDR_RATE" "$BAUD_RATE" - - 2> >(python3 fskstatsudp.py --rate 1 --freq $RX_SSB_FREQ --samplerate $SDR_RATE) | \
+  ./drs232_ldpc - -  -vv 2> /dev/null | \
+  python3 rx_ssdv.py --partialupdate 16 --headless
+else
+  echo "No valid SDR type specified! Please enter RTLSDR or KA9Q!"
+fi
 
 # Kill off the SSDV Uploader and the GUIs
 kill $SSDV_UPLOAD_PID
