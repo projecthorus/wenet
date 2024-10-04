@@ -7,7 +7,7 @@ services:
       DEVICE: "wenet-1-pcm.local"
       GAIN: "0"
       BIAS: "0"
-      BAUD_RATE: "115177"
+      BAUD_RATE: "115200"
       OVERSAMPLING: "8"
       IMAGE_PORT: "7890"
       WEB_PORT: "5003"
@@ -25,7 +25,7 @@ services:
       DEVICE: "wenet-2-pcm.local"
       GAIN: 0
       BIAS: 0
-      BAUD_RATE: 115177
+      BAUD_RATE: 115200
       OVERSAMPLING: 8
       IMAGE_PORT: 7892
       WEB_PORT: 5005
