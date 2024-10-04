@@ -1,0 +1,37 @@
+services:
+  wenet-1:
+    environment:
+      MYCALL: "CHANGEME"
+      RXFREQ: "443500000"
+      SDR_TYPE: "KA9Q"
+      DEVICE: "wenet-1-pcm.local"
+      GAIN: "0"
+      BIAS: "0"
+      BAUD_RATE: "115177"
+      OVERSAMPLING: "8"
+      IMAGE_PORT: "7890"
+      WEB_PORT: "5003"
+    volumes:
+      - ~/wenet/rx_images/:/opt/wenet/rx_images/
+      - /var/run/dbus:/var/run/dbus
+      - /var/run/avahi-daemon/socket:/var/run/avahi-daemon/socket
+    image: wenet
+    network_mode: "host"
+  wenet-2:
+    environment:
+      MYCALL: "CHANGEME"
+      RXFREQ: 441200000
+      SDR_TYPE: "KA9Q"
+      DEVICE: "wenet-2-pcm.local"
+      GAIN: 0
+      BIAS: 0
+      BAUD_RATE: 115177
+      OVERSAMPLING: 8
+      IMAGE_PORT: 7892
+      WEB_PORT: 5005
+    volumes:
+      - ~/wenet/rx_images/:/opt/wenet/rx_images/
+      - /var/run/dbus:/var/run/dbus
+      - /var/run/avahi-daemon/socket:/var/run/avahi-daemon/socket
+    image: wenet
+    network_mode: "host"
