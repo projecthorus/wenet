@@ -24,16 +24,17 @@ fi
 : "${BAUD_RATE:=115177}"
 : "${OVERSAMPLING:=8}"
 : "${UDP_PORT:=0}"
+: "${WEB_PORT:=5003}"
 
 # Start up the SSDV Uploader script and push it into the background.
-python3 ssdvuploader.py "$MYCALL" &
-SSDV_UPLOAD_PID=$!
+#python3 ssdvuploader.py "$MYCALL" &
+#SSDV_UPLOAD_PID=$!
 
 # Start the Web Interface Server
 if [ "$UDP_PORT" = "0" ]; then
-  python3 wenetserver.py "$MYCALL" &
+  python3 wenetserver.py "$MYCALL" -l "$WEB_PORT" &
 else
-  python3 wenetserver.py "$MYCALL" -u "$UDP_PORT" &
+  python3 wenetserver.py "$MYCALL" -l "$WEB_PORT" -u "$UDP_PORT" &
 fi
 WEB_VIEWER_PID=$!
 
@@ -64,15 +65,16 @@ if [ "$SDR_TYPE" = "RTLSDR" ] ; then
   python3 rx_ssdv.py --partialupdate 16 --headless
 elif [ "$SDR_TYPE" = "KA9Q" ] ; then
   # Establish a channel
-  echo -n "Tuning receiver -- "
-  avahi-resolve-host-name "$DEVICE"
-  timeout 10 tune --samprate "$SDR_RATE" --mode wenet --frequency "$RX_SSB_FREQ" --ssrc "$RX_SSB_FREQ" --radio "$DEVICE"
+  #  echo -n "Tuning receiver -- "
+  #  avahi-resolve-host-name "$DEVICE"
+  #  timeout 10 tune --samprate "$SDR_RATE" --mode wenet --frequency "$RX_SSB_FREQ" --ssrc "$RX_SSB_FREQ" --radio "$DEVICE"
 
   # Start receiver
-  echo -n "Starting pcmcat and demodulator -- "
-  PCMDEVICE=$(echo "$DEVICE" | sed 's/.local/-pcm.local/g')
-  echo "$PCMDEVICE"
-  pcmcat -s "$RX_SSB_FREQ" "$PCMDEVICE" | \
+  echo "Starting pcmcat and demodulator"
+  #  PCMDEVICE="$DEVICE" #$(echo "$DEVICE" | sed 's/.local/-pcm.local/g')
+  #  echo "$PCMDEVICE"
+  #  pcmcat -s "$RX_SSB_FREQ" "$PCMDEVICE" | \
+  pcmcat "$DEVICE" | \
   ./fsk_demod --cs16 -s --stats=100 2 "$SDR_RATE" "$BAUD_RATE" - - 2> >(python3 fskstatsudp.py --rate 1 --freq $RX_SSB_FREQ --samplerate $SDR_RATE) | \
   ./drs232_ldpc - -  -vv 2> /dev/null | \
   python3 rx_ssdv.py --partialupdate 16 --headless
@@ -81,5 +83,5 @@ else
 fi
 
 # Kill off the SSDV Uploader and the GUIs
-kill $SSDV_UPLOAD_PID
+#kill $SSDV_UPLOAD_PID
 kill $WEB_VIEWER_PID

@@ -9,21 +9,21 @@
 # Your station callsign, which will be shown on https://ssdv.habhub.org
 # when receiving packets.
 # Make sure there is no space between the = and your callsign.
-MYCALL=CHANGEME
+MYCALL=KE5GDB-1
 
 # Receive Frequency (Hz)
 # The normal receive frequency used by Project Horus is 443.5 MHz
-RXFREQ=443500000
+RXFREQ=431250000
 
 # SDR Type. Set this to RTLSDR for RTL-SDR use or KA9Q for KA9Q-Radio use
-SDR_TYPE=RTLSDR
-#SDR_TYPE=KA9Q
+#SDR_TYPE=RTLSDR
+SDR_TYPE=KA9Q
 
 # RTLSDR Device ID. Leave this at 0 if you don't want to use a particular device
-DEVICE=0
-#DEVICE=wenet-1-pcm.local
+#DEVICE=0
+DEVICE=wenet-1-pcm.local
 
-# Receiver Gain. Set this to 0 to use automatic gain control, otherwise if running a
+# Receiver Gain (RTL-SDR only). Set this to 0 to use automatic gain control, otherwise if running a
 # preamplifier, you may want to experiment with lower gain settings to optimize
 # your receiver setup.
 # You can find what gain range is valid for your RTLSDR by running: rtl_test
@@ -31,7 +31,7 @@ DEVICE=0
 # 32.8 - your performance may vary!
 GAIN=0
 
-# Bias Tee Enable (1) or Disable (0)
+# Bias Tee Enable (1) or Disable (0) (RTL-SDR only)
 # Enable this is you are intending on powering a preamplifer via coax from your RTLSDR
 BIAS=0
 
@@ -43,7 +43,7 @@ BIAS=0
 # 9600 baud, 100x oversampling
 # 4800 baud, 200x oversampling
 #
-BAUD_RATE=115177
+BAUD_RATE=115200
 OVERSAMPLING=8
 
 
@@ -76,6 +76,7 @@ if [ "SDR_TYPE" = "RTLSDR" ] ; then
 		--device /dev/bus/usb \
 		-p 5003:5003
 		wenet
+		# ghcr.io/projecthorus/wenet:latest
 elif [ "$SDR_TYPE" = "KA9Q" ] ; then
 	docker run -d \
 		--name wenet \
@@ -94,6 +95,8 @@ elif [ "$SDR_TYPE" = "KA9Q" ] ; then
 		--device /dev/bus/usb \
 		--network host \
 		wenet
+		# ghcr.io/projecthorus/wenet:latest
+
 else
 	echo "No valid SDR type specified! Please enter RTLSDR or KA9Q!"
 	exit 0
