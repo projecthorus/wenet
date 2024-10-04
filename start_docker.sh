@@ -9,19 +9,17 @@
 # Your station callsign, which will be shown on https://ssdv.habhub.org
 # when receiving packets.
 # Make sure there is no space between the = and your callsign.
-MYCALL=KE5GDB-1
+MYCALL=CHANGME
 
 # Receive Frequency (Hz)
 # The normal receive frequency used by Project Horus is 443.5 MHz
-RXFREQ=431250000
+RXFREQ=443500000
 
 # SDR Type. Set this to RTLSDR for RTL-SDR use or KA9Q for KA9Q-Radio use
-#SDR_TYPE=RTLSDR
-SDR_TYPE=KA9Q
+SDR_TYPE=RTLSDR
 
 # RTLSDR Device ID. Leave this at 0 if you don't want to use a particular device
-#DEVICE=0
-DEVICE=wenet-1-pcm.local
+DEVICE=0
 
 # Receiver Gain (RTL-SDR only). Set this to 0 to use automatic gain control, otherwise if running a
 # preamplifier, you may want to experiment with lower gain settings to optimize
@@ -43,7 +41,7 @@ BIAS=0
 # 9600 baud, 100x oversampling
 # 4800 baud, 200x oversampling
 #
-BAUD_RATE=115200
+BAUD_RATE=115177
 OVERSAMPLING=8
 
 
@@ -69,7 +67,6 @@ docker stop wenet || true && docker rm wenet || true
 
 # Start the container!
 echo "Starting new Wenet instance..."
-<<<<<<< HEAD
 if [ "SDR_TYPE" = "RTLSDR" ] ; then
 	docker run -d \
 		--name wenet \
@@ -87,8 +84,7 @@ if [ "SDR_TYPE" = "RTLSDR" ] ; then
 		-v ~/wenet/rx_images/:/opt/wenet/rx_images/ \
 		--device /dev/bus/usb \
 		-p $WEB_PORT:$WEB_PORT
-		wenet
-		# ghcr.io/projecthorus/wenet:latest
+		ghcr.io/projecthorus/wenet:latest
 elif [ "$SDR_TYPE" = "KA9Q" ] ; then
 	docker run -d \
 		--name wenet \
@@ -108,8 +104,7 @@ elif [ "$SDR_TYPE" = "KA9Q" ] ; then
 		-v /var/run/avahi-daemon/socket:/var/run/avahi-daemon/socket \
 		--device /dev/bus/usb \
 		--network host \
-		wenet
-		# ghcr.io/projecthorus/wenet:latest
+		ghcr.io/projecthorus/wenet:latest
 
 else
 	echo "No valid SDR type specified! Please enter RTLSDR or KA9Q!"
