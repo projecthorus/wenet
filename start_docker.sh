@@ -9,7 +9,7 @@
 # Your station callsign, which will be shown on https://ssdv.habhub.org
 # when receiving packets.
 # Make sure there is no space between the = and your callsign.
-MYCALL=CHANGME
+MYCALL=CHANGEME
 
 # Receive Frequency (Hz)
 # The normal receive frequency used by Project Horus is 443.5 MHz
