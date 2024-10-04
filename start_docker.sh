@@ -53,6 +53,15 @@ OVERSAMPLING=8
 # with Chasemapper
 UDP_PORT=0
 
+# UDP Port used for Wenet inter-process communication.
+# If you are intenting on running more than one Wenet instance on the same computer
+# (e.g. multiple docker containers), use a different port for each instance.
+IMAGE_PORT=7890
+
+# HTTP server port for Web GUI.
+# If you are intenting on running more than one Wenet instance on the same computer
+# (e.g. multiple docker containers), use a different port for each instance.
+WEB_PORT=5003
 
 # Stop and remove any existing wenet instances
 echo "Stopping/Removing any existing Wenet instances..."
@@ -60,6 +69,7 @@ docker stop wenet || true && docker rm wenet || true
 
 # Start the container!
 echo "Starting new Wenet instance..."
+<<<<<<< HEAD
 if [ "SDR_TYPE" = "RTLSDR" ] ; then
 	docker run -d \
 		--name wenet \
@@ -71,10 +81,12 @@ if [ "SDR_TYPE" = "RTLSDR" ] ; then
 		-e OVERSAMPLING=$OVERSAMPLING \
 		-e DEVICE=$DEVICE \
 		-e UDP_PORT=$UDP_PORT \
+		-e IMAGE_PORT=$IMAGE_PORT \
+		-e WEB_PORT=$WEB_PORT \
 		-e SDR_TYPE=$SDR_TYPE \
 		-v ~/wenet/rx_images/:/opt/wenet/rx_images/ \
 		--device /dev/bus/usb \
-		-p 5003:5003
+		-p $WEB_PORT:$WEB_PORT
 		wenet
 		# ghcr.io/projecthorus/wenet:latest
 elif [ "$SDR_TYPE" = "KA9Q" ] ; then
@@ -88,6 +100,8 @@ elif [ "$SDR_TYPE" = "KA9Q" ] ; then
 		-e OVERSAMPLING=$OVERSAMPLING \
 		-e DEVICE=$DEVICE \
 		-e UDP_PORT=$UDP_PORT \
+		-e IMAGE_PORT=$IMAGE_PORT \
+		-e WEB_PORT=$WEB_PORT \
 		-e SDR_TYPE=$SDR_TYPE \
 		-v ~/wenet/rx_images/:/opt/wenet/rx_images/ \
 		-v /var/run/dbus:/var/run/dbus \

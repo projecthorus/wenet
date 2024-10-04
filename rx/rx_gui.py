@@ -131,6 +131,7 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser()
     parser.add_argument("-v", "--verbose", action='store_true', default=False, help="Verbose output")
+    parser.add_argument("--image_port", type=int, default=None, help="UDP port used for communication between Wenet decoder processes. Default: 7890")
     args = parser.parse_args()
 
     if args.verbose:
@@ -139,6 +140,10 @@ if __name__ == "__main__":
         log_level = logging.INFO
 
     logging.basicConfig(format='%(asctime)s %(levelname)s: %(message)s', level=log_level)
+
+    # Overwrite the image UDP port if it has been provided
+    if args.image_port:
+        WENET_IMAGE_UDP_PORT = args.image_port
 
     app = QtWidgets.QApplication(sys.argv)
     app.setApplicationName('SSDV Viewer')
