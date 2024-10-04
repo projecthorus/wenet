@@ -49,6 +49,11 @@ OVERSAMPLING=8
 UDP_PORT=0
 
 
+# UDP Port used for Wenet inter-process communication.
+# If you are intenting on running more than one Wenet instance on the same computer
+# (e.g. multiple docker containers), use a different port for each instance.
+IMAGE_PORT=7890
+
 # Stop and remove any existing wenet instances
 echo "Stopping/Removing any existing Wenet instances..."
 docker stop wenet || true && docker rm wenet || true
@@ -65,6 +70,7 @@ docker run -d \
 	-e OVERSAMPLING=$OVERSAMPLING \
 	-e DEVICE=$DEVICE \
 	-e UDP_PORT=$UDP_PORT \
+	-e IMAGE_PORT=$IMAGE_PORT \
 	-v ~/wenet/rx_images/:/opt/wenet/rx_images/ \
 	--device /dev/bus/usb \
 	-p 5003:5003 \

@@ -24,6 +24,7 @@ fi
 : "${BAUD_RATE:=115177}"
 : "${OVERSAMPLING:=8}"
 : "${UDP_PORT:=0}"
+: "${IMAGE_PORT:=7890}"
 
 # Start up the SSDV Uploader script and push it into the background.
 python3 ssdvuploader.py "$MYCALL" &
@@ -33,7 +34,7 @@ SSDV_UPLOAD_PID=$!
 if [ "$UDP_PORT" = "0" ]; then
   python3 wenetserver.py "$MYCALL" &
 else
-  python3 wenetserver.py "$MYCALL" -u "$UDP_PORT" &
+  python3 wenetserver.py "$MYCALL" -u "$UDP_PORT" --image_port "$IMAGE_PORT"  &
 fi
 WEB_VIEWER_PID=$!
 
@@ -57,9 +58,9 @@ fi
 # Start up the receive chain.
 echo "Using Complex Samples."
 rtl_sdr -d "$DEVICE" -s "$SDR_RATE" -f "$RX_SSB_FREQ" -g "$GAIN" - | \
-./fsk_demod --cu8 -s --stats=100 2 "$SDR_RATE" "$BAUD_RATE" - - 2> >(python3 fskstatsudp.py --rate 1 --freq $RX_SSB_FREQ --samplerate $SDR_RATE) | \
+./fsk_demod --cu8 -s --stats=100 2 "$SDR_RATE" "$BAUD_RATE" - - 2> >(python3 fskstatsudp.py --rate 1 --freq $RX_SSB_FREQ --samplerate $SDR_RATE --image_port "$IMAGE_PORT") | \
 ./drs232_ldpc - -  -vv 2> /dev/null | \
-python3 rx_ssdv.py --partialupdate 16 --headless
+python3 rx_ssdv.py --partialupdate 16 --headless --image_port "$IMAGE_PORT"
 
 # Kill off the SSDV Uploader and the GUIs
 kill $SSDV_UPLOAD_PID

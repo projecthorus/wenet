@@ -334,6 +334,7 @@ if __name__ == "__main__":
     parser.add_argument("-l", "--listen_port", default=5003, help="Port to run Web Server on. (Default: 5003)")
     parser.add_argument("-v", "--verbose", action='store_true', help="Enable debug output.")
     parser.add_argument("--no_sondehub", default=False, action='store_true', help="Disable SondeHub-Amateur position upload.")
+    parser.add_argument("--image_port", type=int, default=None, help="UDP port used for communication between Wenet decoder processes. Default: 7890")
     parser.add_argument("-u", "--udp_port", default=None, type=int, help="Port to emit Horus UDP packets on. (Default: 0 (disabled), Typical: 55673)")
     args = parser.parse_args()
 
@@ -353,6 +354,10 @@ if __name__ == "__main__":
 
     if args.udp_port:
         udp_emit_port = args.udp_port
+
+    # Overwrite the image UDP port if it has been provided
+    if args.image_port:
+        WENET_IMAGE_UDP_PORT = args.image_port
 
     logging.getLogger("werkzeug").setLevel(logging.ERROR)
     logging.getLogger("socketio").setLevel(logging.ERROR)
