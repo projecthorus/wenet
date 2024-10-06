@@ -65,6 +65,10 @@ class RFM98W_Serial(object):
         Configure the RFM98W into direct asynchronous FSK mode, with the appropriate power, deviation, and transmit frequency.
         """
     
+        # Cleanup any open file handlers.
+        if self.hw:
+            self.hw.teardown()
+
         self.hw = HardwareInterface(self.spidevice)
         self.lora = LoRaRFM98W(self.hw, verbose=False)
 
