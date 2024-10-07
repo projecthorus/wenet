@@ -33,6 +33,7 @@ RUN git clone https://github.com/fsphil/ssdv.git /root/ssdv && \
 RUN git clone https://github.com/ka9q/ka9q-radio.git /root/ka9q-radio && \
 #RUN git clone https://github.com/fventuri/ka9q-radio.git /root/ka9q-radio && \
   cd /root/ka9q-radio && \
+  git checkout aa7791f && \
 #  git checkout sdrplay && \
   make -f Makefile.linux pcmcat tune && \
   mkdir -p /root/target/usr/local/bin/ && \
