@@ -113,7 +113,7 @@ class SSDVUploader(object):
 
 
     def ssdv_upload_single(self, packet):
-        _packet_dict = self.ssdv_encode_packet(packet,callsign)
+        _packet_dict = self.ssdv_encode_packet(packet)
 
         _attempts = 1
         while _attempts <= self.upload_retries:

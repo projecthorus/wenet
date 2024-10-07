@@ -167,11 +167,11 @@ class FSKDemodStats(object):
 
 
 
-def send_modem_stats(stats):
+def send_modem_stats(stats, udp_port=WENET_IMAGE_UDP_PORT):
     """ Send a JSON-encoded dictionary to the wenet frontend """
     try:
         gui_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        gui_socket.sendto(json.dumps(stats).encode('ascii'), ("127.0.0.1", WENET_IMAGE_UDP_PORT))
+        gui_socket.sendto(json.dumps(stats).encode('ascii'), ("127.0.0.1", udp_port))
         gui_socket.close()
 
     except Exception as e:
@@ -186,12 +186,15 @@ if __name__ == "__main__":
     parser.add_argument("--freq", default=441200000, type=float, help="IQ Centre Frequency (Hz)")
     parser.add_argument("--samplerate", default=921416, type=float, help="Sample rate (Hz)")
     parser.add_argument("--real", default=False, action="store_true", help="Real Samples (not IQ)")
+    parser.add_argument("--image_port", type=int, default=None, help="UDP port used for communication between Wenet decoder processes. Default: 7890")
     args = parser.parse_args()
 
     _averaging_time = 1.0/args.rate
 
     stats_parser = FSKDemodStats(averaging_time=_averaging_time, peak_hold=True, freq=args.freq, sample_rate=args.samplerate, real=args.real)
-
+    # Overwrite the image UDP port if it has been provided
+    if args.image_port:
+        WENET_IMAGE_UDP_PORT = args.image_port
 
     _last_update_time = time.time()
 
@@ -220,7 +223,7 @@ if __name__ == "__main__":
                     'time': datetime.datetime.utcnow().strftime("%Y-%m-%d %H:%M:%SZ")
                 }
 
-                send_modem_stats(_stats)
+                send_modem_stats(_stats, udp_port=WENET_IMAGE_UDP_PORT)
 
                 _last_update_time = time.time()
 
