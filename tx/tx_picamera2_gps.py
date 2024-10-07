@@ -32,7 +32,8 @@ parser.add_argument("--vflip", action='store_true', default=False, help="Flip ca
 parser.add_argument("--hflip", action='store_true', default=False, help="Flip captured image horizontally.")
 parser.add_argument("--resize", type=float, default=0.5, help="Resize raw image from camera by this factor before transmit (in both X/Y, to nearest multiple of 16 pixels). Default=0.5")
 parser.add_argument("--whitebalance", type=str, default='daylight', help="White Balance setting: Auto, Daylight, Cloudy, Incandescent, Tungesten, Fluorescent, Indoor")
-parser.add_argument("--lensposition", type=float, default=-1.0, help="For PiCam v3, set the lens position. Default: -1 = Autofocus")
+parser.add_argument("--lensposition", type=float, default=-1.0, help="For PiCam v3, set the lens position. Default: -1 = Continuous Autofocus")
+parser.add_argument("--afwindow", type=str, default=None, help="For PiCam v3 Autofocus mode, set the AutoFocus window, x,y,w,h , in fractions of frame size. (Default: None = default)")
 parser.add_argument("-v", "--verbose", action='store_true', default=False, help="Show additional debug info.")
 args = parser.parse_args()
 
@@ -67,6 +68,7 @@ else:
 
 
 # Start up Wenet TX.
+picam = None
 tx = PacketTX.PacketTX(radio=radio, callsign=callsign, log_file="debug.log", udp_listener=55674)
 tx.start_tx()
 
@@ -89,10 +91,17 @@ if args.gps.lower() != 'none':
 
 def handle_gps_data(gps_data):
 	""" Handle GPS data passed to us from the UBloxGPS instance """
-	global max_altitude, tx, system_time_set
+	global max_altitude, tx, system_time_set, picam
+
+	# Try and grab metadata from the camera. We send some of this in the telemetry.
+	try:
+		cam_metadata = picam.get_camera_metadata()
+		#print(cam_metadata)
+	except:
+		cam_metadata = None
 
 	# Immediately generate and transmit a GPS packet.
-	tx.transmit_gps_telemetry(gps_data)
+	tx.transmit_gps_telemetry(gps_data, cam_metadata)
 
 	# If we have GPS fix, update the max altitude field.
 	if (gps_data['altitude'] > max_altitude) and (gps_data['gpsFix'] == 3):
@@ -201,7 +210,9 @@ picam = WenetPiCamera2.WenetPiCamera2(
 		vertical_flip=args.vflip, 
 		horizontal_flip=args.hflip,
 		whitebalance=args.whitebalance,
-		lens_position=args.lensposition)
+		lens_position=args.lensposition,
+		af_window=args.afwindow
+		)
 # .. and start it capturing continuously.
 picam.run(destination_directory="./tx_images/", 
 	tx = tx,

@@ -97,6 +97,14 @@ sleep 10
 # Set a fixed focus position on a PiCam v3 (NOTE: The Picamv3 focus drifts with temperature - beware!!!)
 # 0.0 = Infinity
 # --lensposition 0.0 \
+# Set a user-defined AutoFocus Window Area, for use wiith PiCam v3 in Autofocus Mode
+# Must be provided as x,y,w,h  , with all values between 0-1.0, where:
+# x: Starting X position of rectangle within frame, as fraction of frame width
+# y: Starting Y position of rectangle within frame, as fraction of frame height
+# w: Width of rectangle, as fraction of frame width
+# h: Height of rectangle, as fraction of frame height
+# e.g:
+# --afwindow 0.25,0.25,0.5,0.5
 
 python3 tx_picamera2_gps.py \
     --rfm98w $SPIDEVICE \

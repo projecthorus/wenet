@@ -113,6 +113,10 @@
                     _new_gps_detailed += ", Load Avgs: " + msg.load_avg_1.toFixed(2) + "/" + msg.load_avg_5.toFixed(2) + "/" + msg.load_avg_15.toFixed(2)
                     _new_gps_detailed += ", Disk Usage: " + msg.disk_percent.toFixed(2) +"%"
                     _new_gps_detailed += ", CPU Speed: " + msg.cpu_speed +" MHz"
+
+                    if(msg.lens_position > -900){
+                        _new_gps_detailed += ", Lens Position: " + msg.lens_position
+                    }
                     $('#detail_gps_telem_data').html(_new_gps_detailed);
 
                 }

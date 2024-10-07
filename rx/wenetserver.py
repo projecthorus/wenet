@@ -152,6 +152,9 @@ def handle_gps_telemetry(gps_data):
             _extra_fields['load_avg_15'] = gps_data['load_avg_15']
             _extra_fields['disk_percent'] = gps_data['disk_percent']
 
+            if gps_data['lens_position'] > -999.0:
+                _extra_fields['lens_position'] = gps_data['lens_position']
+
         sondehub.add_telemetry(
             current_callsign + "-Wenet",
             gps_data['timestamp'] + "Z",

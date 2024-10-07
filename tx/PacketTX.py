@@ -255,7 +255,7 @@ class PacketTX(object):
         print(log_string)
 
 
-    def transmit_gps_telemetry(self, gps_data):
+    def transmit_gps_telemetry(self, gps_data, cam_metadata=None):
         """ Generate and Transmit a GPS Telemetry Packet.
 
         Host platform CPU speed, temperature and load averages are collected and included in this packet too.
@@ -264,6 +264,7 @@ class PacketTX(object):
         gps_data: A dictionary, as produced by the UBloxGPS class. It must have the following fields:
                   latitude, longitude, altitude, ground_speed, ascent_rate, heading, gpsFix, numSV,
                   week, iTOW, leapS, dynamic_model.
+        cam_metadata: An optional dictionary containing metadata about the current camera state.
         
 
         The generated packet format is in accordance with the specification in:
@@ -288,9 +289,15 @@ class PacketTX(object):
         except:
             _disk_percent = -1.0
 
+        _lens_position = -999.0
+        if cam_metadata:
+            if 'LensPosition' in cam_metadata:
+                _lens_position = cam_metadata['LensPosition']
+
+
         # Construct the packet
         try:
-            gps_packet = struct.pack(">BHIBffffffBBBffHffff",
+            gps_packet = struct.pack(">BHIBffffffBBBffHfffff",
                 1,  # Packet ID for the GPS Telemetry Packet.
                 gps_data['week'],
                 int(gps_data['iTOW']*1000), # Convert the GPS week value to milliseconds, and cast to an int.
@@ -311,7 +318,8 @@ class PacketTX(object):
                 _load_avg_1,
                 _load_avg_5,
                 _load_avg_15,
-                _disk_percent
+                _disk_percent,
+                _lens_position
                 )
 
             self.queue_telemetry_packet(gps_packet)
