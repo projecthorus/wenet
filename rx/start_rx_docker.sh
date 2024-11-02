@@ -27,7 +27,7 @@ fi
 : "${IMAGE_PORT:=7890}"
 
 # Start up the SSDV Uploader script and push it into the background.
-python3 ssdvuploader.py "$MYCALL" &
+python3 ssdvuploader.py --image_port "$IMAGE_PORT" "$MYCALL" &
 SSDV_UPLOAD_PID=$!
 
 # Start the Web Interface Server
