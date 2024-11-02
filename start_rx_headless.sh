@@ -94,7 +94,7 @@ if [ "$RX_FLOW" = "GQRX" ]; then
 fi
 
 # Start up the SSDV Uploader script and push it into the background.
-python ssdvuploader.py $MYCALL &
+python ssdvuploader.py --image_port $IMAGE_PORT $MYCALL &
 SSDV_UPLOAD_PID=$!
 
 # Start the Web Interface Server
