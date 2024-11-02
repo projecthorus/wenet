@@ -92,11 +92,14 @@ sleep 10
 # Additional configuration lines you may wish to add or remove before the $CALLSIGN line may include:
 # Flip the image vertically and horizontally (e.g. if the camera is mounted upside down)
 # --vflip --hflip \
+#
 # Add a logo overlay in the bottom right of the image. This must be a transparent PNG file.
 # --logo yourlogo.png \
+#
 # Set a fixed focus position on a PiCam v3 (NOTE: The Picamv3 focus drifts with temperature - beware!!!)
 # 0.0 = Infinity
 # --lensposition 0.0 \
+#
 # Set a user-defined AutoFocus Window Area, for use wiith PiCam v3 in Autofocus Mode
 # Must be provided as x,y,w,h  , with all values between 0-1.0, where:
 # x: Starting X position of rectangle within frame, as fraction of frame width
@@ -104,7 +107,11 @@ sleep 10
 # w: Width of rectangle, as fraction of frame width
 # h: Height of rectangle, as fraction of frame height
 # e.g:
-# --afwindow 0.25,0.25,0.5,0.5
+# --afwindow 0.25,0.25,0.5,0.5 \
+#
+# Set a fixed lens offset for the PiCam v3, in dioptres. May help with autofocus in cold temperatures.
+# e.g. to offset by 1 dioptre:
+# --afoffset -1.0 \
 
 python3 tx_picamera2_gps.py \
     --rfm98w $SPIDEVICE \

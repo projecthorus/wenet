@@ -54,6 +54,7 @@ class WenetPiCamera2(object):
                 whitebalance = 'auto',
                 lens_position = -1,
                 af_window = None,
+                af_offset = 0,
                 temp_filename_prefix = 'picam_temp',
                 debug_ptr = None,
                 init_retries = 10
@@ -85,6 +86,7 @@ class WenetPiCamera2(object):
                         w: Width of rectangle, as fraction of frame width
                         h: Height of rectangle, as fraction of frame height
                         If not provided, the default windowing (approx centre third of width/height) will be used.
+            af_offset:  Offset the lens by a fixed dioptre. May help with autofocus during flights.
             temp_filename_prefix: prefix used for temporary files.
 
             debug_ptr:	'pointer' to a function which can handle debug messages.
@@ -103,6 +105,7 @@ class WenetPiCamera2(object):
         self.vertical_flip = vertical_flip
         self.lens_position = lens_position
         self.af_window = af_window
+        self.af_offset = af_offset
         self.af_window_rectangle = None # Calculated during init
         self.autofocus_mode = False
 
@@ -139,7 +142,20 @@ class WenetPiCamera2(object):
         except:
             pass
 
-        self.cam = Picamera2()
+        # Apply a lens offset if we have been provided one.
+        if self.af_offset != 0:
+            tuning = Picamera2.load_tuning_file("imx708.json")
+            map = Picamera2.find_tuning_algo(tuning, "rpi.af")["map"]
+            #print(map)
+            offset_hw = self.af_offset * (map[3]-map[1])/(map[2]-map[0])
+            for i in range(1, len(map), 2):
+                map[i] += offset_hw
+            #print(Picamera2.find_tuning_algo(tuning, "rpi.af")["map"])
+
+            self.cam = Picamera2(0, tuning=tuning)
+        
+        else:
+            self.cam = Picamera2()
 
         self.camera_properties = self.cam.camera_properties
 
@@ -328,6 +344,7 @@ class WenetPiCamera2(object):
         # Copy best image to target filename.
         self.debug_message("Copying image to storage with filename %s" % filename)
         os.system("cp %s %s" % (largest_pic, filename))
+
         # Clean up temporary images.
         os.system("rm %s_*.jpg" % self.temp_filename_prefix)
 

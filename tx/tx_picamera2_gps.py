@@ -34,6 +34,7 @@ parser.add_argument("--resize", type=float, default=0.5, help="Resize raw image 
 parser.add_argument("--whitebalance", type=str, default='daylight', help="White Balance setting: Auto, Daylight, Cloudy, Incandescent, Tungesten, Fluorescent, Indoor")
 parser.add_argument("--lensposition", type=float, default=-1.0, help="For PiCam v3, set the lens position. Default: -1 = Continuous Autofocus")
 parser.add_argument("--afwindow", type=str, default=None, help="For PiCam v3 Autofocus mode, set the AutoFocus window, x,y,w,h , in fractions of frame size. (Default: None = default)")
+parser.add_argument("--afoffset", type=float, default=0.0, help="For PiCam v3 Autofocus mode, offset the lens by this many dioptres (Default: 0 = No offset)")
 parser.add_argument("-v", "--verbose", action='store_true', default=False, help="Show additional debug info.")
 args = parser.parse_args()
 
@@ -211,7 +212,8 @@ picam = WenetPiCamera2.WenetPiCamera2(
 		horizontal_flip=args.hflip,
 		whitebalance=args.whitebalance,
 		lens_position=args.lensposition,
-		af_window=args.afwindow
+		af_window=args.afwindow,
+		af_offset=args.afoffset
 		)
 # .. and start it capturing continuously.
 picam.run(destination_directory="./tx_images/", 
