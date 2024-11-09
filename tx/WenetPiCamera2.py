@@ -55,6 +55,7 @@ class WenetPiCamera2(object):
                 lens_position = -1,
                 af_window = None,
                 af_offset = 0,
+                exposure_value = 0.0,
                 temp_filename_prefix = 'picam_temp',
                 debug_ptr = None,
                 init_retries = 10
@@ -106,6 +107,7 @@ class WenetPiCamera2(object):
         self.lens_position = lens_position
         self.af_window = af_window
         self.af_offset = af_offset
+        self.exposure_value = exposure_value
         self.af_window_rectangle = None # Calculated during init
         self.autofocus_mode = False
 
@@ -201,7 +203,8 @@ class WenetPiCamera2(object):
 
         self.cam.set_controls(
             {'AwbMode': self.whitebalance,
-            'AeMeteringMode': controls.AeMeteringModeEnum.Matrix
+            'AeMeteringMode': controls.AeMeteringModeEnum.Matrix,
+            'ExposureValue': self.exposure_value
             #'NoiseReductionMode': controls.draft.NoiseReductionModeEnum.Off
             }
             )
@@ -267,7 +270,8 @@ class WenetPiCamera2(object):
         # TODO - Maybe expose some of these settings?
         self.cam.set_controls(
             {'AwbMode': self.whitebalance,
-            'AeMeteringMode': controls.AeMeteringModeEnum.Matrix
+            'AeMeteringMode': controls.AeMeteringModeEnum.Matrix,
+            'ExposureValue': self.exposure_value
             #'NoiseReductionMode': controls.draft.NoiseReductionModeEnum.Off
             }
             )

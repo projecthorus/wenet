@@ -33,6 +33,11 @@ TX_IMAGE_SCALING=0.5
 # Allowed Values: Auto, Daylight, Cloudy, Incandescent, Tungesten, Fluorescent, Indoor
 WHITEBALANCE=Auto
 
+# Exposure compensation
+# Allowed values: -8.0 to 8.0
+# You may wish to adjust this to bump up the exposure a little.
+EXPOSURE=0.0
+
 # Refer near the end of this file for image flipping and overlay options
 
 # Baud Rate
@@ -122,5 +127,5 @@ python3 tx_picamera2_gps.py \
     --gps $GPSPORT \
     --resize $TX_IMAGE_SCALING \
     --whitebalance $WHITEBALANCE \
-    --vflip --hflip \
+    --exposure $EXPOSURE \
     $MYCALL
