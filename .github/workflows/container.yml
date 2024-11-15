@@ -19,11 +19,11 @@ jobs:
 
       - name: Calculate Container Metadata
         id: meta
-        uses: docker/metadata-action@v3
+        uses: docker/metadata-action@v4
         with:
           images: ghcr.io/${{ github.repository }}
-          flavor: |
-            latest=true
+          tags: |
+            type=raw,value=latest,enable={{is_default_branch}}
 
       - name: Setup QEMU
         uses: docker/setup-qemu-action@v1
