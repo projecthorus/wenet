@@ -67,7 +67,7 @@ docker stop wenet || true && docker rm wenet || true
 
 # Start the container!
 echo "Starting new Wenet instance..."
-if [ "SDR_TYPE" = "RTLSDR" ] ; then
+if [ "$SDR_TYPE" = "RTLSDR" ] ; then
 	docker run -d \
 		--name wenet \
 		-e MYCALL=$MYCALL \
@@ -83,7 +83,7 @@ if [ "SDR_TYPE" = "RTLSDR" ] ; then
 		-e SDR_TYPE=$SDR_TYPE \
 		-v ~/wenet/rx_images/:/opt/wenet/rx_images/ \
 		--device /dev/bus/usb \
-		-p $WEB_PORT:$WEB_PORT
+		-p $WEB_PORT:$WEB_PORT \
 		ghcr.io/projecthorus/wenet:latest
 elif [ "$SDR_TYPE" = "KA9Q" ] ; then
 	docker run -d \
