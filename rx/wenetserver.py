@@ -64,6 +64,14 @@ def flask_index():
     """ Render main index page """
     return flask.render_template('index.html')
 
+@app.route("/get_config")
+def serve_config():
+    """ Return Configuration Information """
+    global my_callsign
+    return json.dumps({
+        "version": WENET_VERSION,
+        "callsign": my_callsign
+    })
 
 @app.route("/latest.jpg")
 def serve_latest_image():

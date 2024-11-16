@@ -26,6 +26,18 @@
 
             setup_fft_plot();
 
+            $.ajax({
+                  // Get Wenet configuration information
+                  url: "get_config",
+                  dataType: 'json',
+                  async: true,
+                  success: function(data) {
+                    // Update the current version field.
+                    $('#wenet-version').text("Wenet RX v" + data.version);
+                    $('#my-callsign').text(data.callsign);
+                  }
+            });
+
             // Handle an image update.
             socket.on('image_update', function(msg) {
                 if(document.visibilityState == "hidden"){
@@ -250,7 +262,7 @@
     <div class="container-fluid">
         <div class="row">
             <div class="col-3">
-                <h3 class="masthead-brand">Wenet Dashboard</h3>
+                <h3 class="masthead-brand" id="wenet-version">Wenet RX</h3>
             </div>
             <div class="col-5">
                 <h4 class="snr-display" id="time-data"></h4>
@@ -263,7 +275,10 @@
             </div>
         </div>
         <div class="row">
-            <div class="col-6">
+            <div class="col-2">
+                <h5 id="my-callsign">N0CALL</h5>
+            </div>
+            <div class="col-4">
                 <h5 class="orientation-display" id="orientation-data"></h5>
             </div>
             <div class="col-6">
