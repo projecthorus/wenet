@@ -67,7 +67,7 @@ docker stop wenet || true && docker rm wenet || true
 
 # Start the container!
 echo "Starting new Wenet instance..."
-if [ "SDR_TYPE" = "RTLSDR" ] ; then
+if [ "$SDR_TYPE" = "RTLSDR" ] ; then
 	docker run -d \
 		--name wenet \
 		-e MYCALL=$MYCALL \
@@ -83,8 +83,8 @@ if [ "SDR_TYPE" = "RTLSDR" ] ; then
 		-e SDR_TYPE=$SDR_TYPE \
 		-v ~/wenet/rx_images/:/opt/wenet/rx_images/ \
 		--device /dev/bus/usb \
-		-p $WEB_PORT:$WEB_PORT
-		ghcr.io/projecthorus/wenet:latest
+		-p $WEB_PORT:$WEB_PORT \
+		ghcr.io/projecthorus/wenet:testing
 elif [ "$SDR_TYPE" = "KA9Q" ] ; then
 	docker run -d \
 		--name wenet \
@@ -104,7 +104,7 @@ elif [ "$SDR_TYPE" = "KA9Q" ] ; then
 		-v /var/run/avahi-daemon/socket:/var/run/avahi-daemon/socket \
 		--device /dev/bus/usb \
 		--network host \
-		ghcr.io/projecthorus/wenet:latest
+		ghcr.io/projecthorus/wenet:testing
 
 else
 	echo "No valid SDR type specified! Please enter RTLSDR or KA9Q!"
