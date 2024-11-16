@@ -68,6 +68,7 @@ docker run -d \
 	-v ~/wenet/rx_images/:/opt/wenet/rx_images/ \
 	--device /dev/bus/usb \
 	-p 5003:5003 \
+	--restart="always" \
 	ghcr.io/projecthorus/wenet:latest
 
 echo "Navigate to http://localhost:5003/ in your web browser to see the Wenet interface!"
