@@ -84,6 +84,7 @@ if [ "$SDR_TYPE" = "RTLSDR" ] ; then
 		-v ~/wenet/rx_images/:/opt/wenet/rx_images/ \
 		--device /dev/bus/usb \
 		-p $WEB_PORT:$WEB_PORT \
+		--restart="always" \
 		ghcr.io/projecthorus/wenet:latest
 elif [ "$SDR_TYPE" = "KA9Q" ] ; then
 	docker run -d \
@@ -104,6 +105,7 @@ elif [ "$SDR_TYPE" = "KA9Q" ] ; then
 		-v /var/run/avahi-daemon/socket:/var/run/avahi-daemon/socket \
 		--device /dev/bus/usb \
 		--network host \
+		--restart="always" \
 		ghcr.io/projecthorus/wenet:latest
 
 else
