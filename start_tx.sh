@@ -19,10 +19,11 @@ TXFREQ=443.500
 # Allowed values are from 2 through 17 dBm.
 TXPOWER=17
 
-# GPS Port
+# GPS Port and baud rate
 # Note that we only support uBlox GPS units
 # set this to none to disable GPS support
 GPSPORT=/dev/ttyACM0
+GPSBAUD=115200
 
 # Image settings
 # Image scaling - Scale the 'native' image resolution of the attached camera by this much
@@ -89,7 +90,7 @@ sleep 10
 # --waitforlock 10      Wait for up to 10 minutes before timing out and continuing anyway
 # --lockcount 60        Wait for 60 sequential valid 3D fixed before exiting (2 Hz update rate, so 60 -> 30 seconds)
 # --locksats 6          Only consider a fix as valid if it has more than 6 SVs in use.
-#python3 ublox.py --waitforlock 10 --lockcount 60 --locksats 6 $GPSPORT
+#python3 ublox.py --waitforlock 10 --lockcount 60 --locksats 6 --baudrate $GPSBAUD $GPSPORT
 
 
 # Start the main TX Script.
@@ -125,6 +126,7 @@ python3 tx_picamera2_gps.py \
     --serial_port $SERIALPORT \
     --tx_power $TXPOWER \
     --gps $GPSPORT \
+    --gpsbaud $GPSBAUD \
     --resize $TX_IMAGE_SCALING \
     --whitebalance $WHITEBALANCE \
     --exposure $EXPOSURE \

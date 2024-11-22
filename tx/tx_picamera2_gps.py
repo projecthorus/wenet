@@ -22,6 +22,7 @@ from radio_wrappers import *
 parser = argparse.ArgumentParser()
 parser.add_argument("callsign", default="N0CALL", help="Payload Callsign")
 parser.add_argument("--gps", default="none", help="uBlox GPS Serial port. Defaults to /dev/ttyACM0")
+parser.add_argument("--gpsbaud", default=115200, type=int, help="uBlox GPS Baud rate. (Default: 115200)")
 parser.add_argument("--logo", default="none", help="Optional logo to overlay on image.")
 parser.add_argument("--rfm98w", default=0, type=int, help="If set, configure a RFM98W on this SPI device number.")
 parser.add_argument("--frequency", default=443.500, type=float, help="Transmit Frequency (MHz). (Default: 443.500 MHz)")
@@ -137,7 +138,8 @@ def handle_gps_data(gps_data):
 try:
 	if args.gps.lower() != 'none':
 		gps = ublox.UBloxGPS(port=args.gps, 
-			dynamic_model = ublox.DYNAMIC_MODEL_AIRBORNE1G, 
+			dynamic_model = ublox.DYNAMIC_MODEL_AIRBORNE1G,
+			baudrate= args.gpsbaud,
 			update_rate_ms = 1000,
 			debug_ptr = tx.transmit_text_message,
 			callback = handle_gps_data,
