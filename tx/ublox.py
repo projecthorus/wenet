@@ -948,7 +948,7 @@ class UBloxGPS(object):
         'leapS':        0,      # GPS Leap Seconds (Difference between GPS time and UTC time)
         'timestamp':    " ",    # ISO-8601 Compliant Date-code (generate by Python's datetime.isoformat() function)
         'datetime': datetime.datetime.utcnow(),       # Fix time as a datetime object.
-        'dynamic_model': 20      # Current dynamic model in use.
+        'dynamic_model': 255      # Current dynamic model in use.
     }
     # Lock files for writing and reading to the internal state dictionary.
     state_writelock = False
