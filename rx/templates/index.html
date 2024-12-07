@@ -129,6 +129,14 @@
                     if(msg.lens_position > -900){
                         _new_gps_detailed += ", Lens Position: " + msg.lens_position
                     }
+                    if(msg.sensor_temp > -900){
+                        _new_gps_detailed += ", Sensor Temp: " + msg.sensor_temp
+                    }
+                    if(msg.focus_fom > -900){
+                        _new_gps_detailed += ", FocusFoM: " + msg.focus_fom
+                    }
+
+
                     $('#detail_gps_telem_data').html(_new_gps_detailed);
 
                 }

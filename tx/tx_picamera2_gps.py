@@ -37,6 +37,9 @@ parser.add_argument("--lensposition", type=float, default=-1.0, help="For PiCam 
 parser.add_argument("--afwindow", type=str, default=None, help="For PiCam v3 Autofocus mode, set the AutoFocus window, x,y,w,h , in fractions of frame size. (Default: None = default)")
 parser.add_argument("--afoffset", type=float, default=0.0, help="For PiCam v3 Autofocus mode, offset the lens by this many dioptres (Default: 0 = No offset)")
 parser.add_argument("--exposure", type=float, default=0.0, help="Exposure compensation. -8.0 to 8.0. Sets the ExposureValue control. (Default: 0.0)")
+parser.add_argument("--use_focus_fom", action='store_true', default=False, help="Use Focus FoM data instead of file size for image selection.")
+parser.add_argument("--num_images", type=int, default=5, help="Number of images to capture on each cycle. (Default: 5)")
+parser.add_argument("--image_delay", type=float, default=1.0, help="Delay time between each image capture. (Default: 1 second)")
 parser.add_argument("-v", "--verbose", action='store_true', default=False, help="Show additional debug info.")
 args = parser.parse_args()
 
@@ -209,14 +212,16 @@ def post_process_image(filename):
 picam = WenetPiCamera2.WenetPiCamera2( 
 		tx_resolution=args.resize,
 		callsign=callsign, 
-		num_images=5, 
+		num_images=args.num_images,
+		image_delay=args.image_delay, 
 		debug_ptr=tx.transmit_text_message, 
 		vertical_flip=args.vflip, 
 		horizontal_flip=args.hflip,
 		whitebalance=args.whitebalance,
 		lens_position=args.lensposition,
 		af_window=args.afwindow,
-		af_offset=args.afoffset
+		af_offset=args.afoffset,
+		use_focus_fom=args.use_focus_fom
 		)
 # .. and start it capturing continuously.
 picam.run(destination_directory="./tx_images/", 

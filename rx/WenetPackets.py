@@ -19,7 +19,7 @@ from base64 import b64encode
 # Check if we are running in Python 2 or 3
 PY3 = sys.version_info[0] == 3
 
-WENET_VERSION = "1.2.0"
+WENET_VERSION = "1.2.1"
 
 WENET_IMAGE_UDP_PORT        = 7890
 WENET_TELEMETRY_UDP_PORT    = 55672
@@ -36,7 +36,7 @@ class WENET_PACKET_TYPES:
 
 
 class WENET_PACKET_LENGTHS:
-    GPS_TELEMETRY           = 65
+    GPS_TELEMETRY           = 73
     ORIENTATION_TELEMETRY   = 43
     IMAGE_TELEMETRY         = 80
 
@@ -208,7 +208,7 @@ def gps_telemetry_decoder(packet):
     # Wrap the next bit in exception handling.
     try:
         # Unpack the packet into a list.
-        data = struct.unpack(">BHIBffffffBBBffHfffff", packet)
+        data = struct.unpack(">BHIBffffffBBBffHfffffff", packet)
 
         gps_data['week']    = data[1]
         gps_data['iTOW']    = data[2]/1000.0 # iTOW provided as milliseconds, convert to seconds.
@@ -231,6 +231,8 @@ def gps_telemetry_decoder(packet):
         gps_data['load_avg_15'] = round(data[18],3)
         gps_data['disk_percent'] = round(data[19],3)
         gps_data['lens_position'] = round(data[20],4)
+        gps_data['sensor_temp'] = round(data[21],1)
+        gps_data['focus_fom'] = int(data[22])
         # Check to see if we actually have real data in these new fields.
         # If its an old transmitter, it will have 0x55 in these spots, which we can detect
         if gps_data['cpu_speed'] == 21845:
@@ -244,6 +246,8 @@ def gps_telemetry_decoder(packet):
             gps_data['load_avg_15'] = 0
             gps_data['disk_percent'] = -1.0
             gps_data['lens_position'] = -999.0
+            gps_data['sensor_temp'] = -999.0
+            gps_data['focus_fom'] = -999.0
 
 
         # Perform some post-processing on the data, to make some of the fields easier to read.
@@ -305,7 +309,7 @@ def gps_telemetry_string(packet):
     if gps_data['error'] != 'None':
         return "GPS: ERROR Could not decode."
     else:
-        gps_data_string = "GPS: %s Lat/Lon: %.5f,%.5f Alt: %dm, Speed: H %dkph V %.1fm/s, Heading: %d deg, Fix: %s, SVs: %d, DynModel: %s, Radio Temp: %.1f, CPU Temp: %.1f, CPU Speed: %d, Load Avg: %.2f, %.2f, %.2f, Disk Usage: %.1f%%, Lens Pos: %.4f" % (
+        gps_data_string = "GPS: %s Lat/Lon: %.5f,%.5f Alt: %dm, Speed: H %dkph V %.1fm/s, Heading: %d deg, Fix: %s, SVs: %d, DynModel: %s, Radio Temp: %.1f, CPU Temp: %.1f, CPU Speed: %d, Load Avg: %.2f, %.2f, %.2f, Disk Usage: %.1f%%, Lens Pos: %.4f, Sensor Temp: %.1f, FocusFoM: %d" % (
             gps_data['timestamp'],
             gps_data['latitude'],
             gps_data['longitude'],
@@ -323,7 +327,9 @@ def gps_telemetry_string(packet):
             gps_data['load_avg_5'],
             gps_data['load_avg_15'],
             gps_data['disk_percent'],
-            gps_data['lens_position']
+            gps_data['lens_position'],
+            gps_data['sensor_temp'],
+            int(gps_data['focus_fom'])
             )
 
         return gps_data_string

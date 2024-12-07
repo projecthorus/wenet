@@ -56,9 +56,10 @@ class WenetPiCamera2(object):
                 af_window = None,
                 af_offset = 0,
                 exposure_value = 0.0,
+                use_focus_fom = False,
                 temp_filename_prefix = 'picam_temp',
                 debug_ptr = None,
-                init_retries = 10
+                init_retries = 10,
                 ):
 
         """ Instantiate a WenetPiCam Object
@@ -88,6 +89,8 @@ class WenetPiCamera2(object):
                         h: Height of rectangle, as fraction of frame height
                         If not provided, the default windowing (approx centre third of width/height) will be used.
             af_offset:  Offset the lens by a fixed dioptre. May help with autofocus during flights.
+            exposure_value: Add a exposure compensation. Defaults to 0.
+            use_focus_fom: Set to True to use FocusFoM data to select the best image instead of file size.
             temp_filename_prefix: prefix used for temporary files.
 
             debug_ptr:	'pointer' to a function which can handle debug messages.
@@ -108,6 +111,7 @@ class WenetPiCamera2(object):
         self.af_window = af_window
         self.af_offset = af_offset
         self.exposure_value = exposure_value
+        self.use_focus_fom = use_focus_fom
         self.af_window_rectangle = None # Calculated during init
         self.autofocus_mode = False
 
@@ -304,6 +308,7 @@ class WenetPiCamera2(object):
 
         # Attempt to capture a set of images.
         img_metadata = []
+        focus_fom = []
         for i in range(self.num_images):
             self.debug_message("Capturing Image %d of %d" % (i+1,self.num_images))
             # Wrap this in error handling in case we lose the camera for some reason.
@@ -314,6 +319,9 @@ class WenetPiCamera2(object):
                 metadata = self.cam.capture_file("%s_%d.jpg" % (self.temp_filename_prefix,i))
                 # Save metadata for this frame 
                 img_metadata.append(metadata.copy())
+                # Separately store the focus FoM so we can look for the max easily.
+                if 'FocusFoM' in metadata:
+                    focus_fom.append(metadata['FocusFoM'])
                 
                 self.capture_in_progress = False
                 print(f"Image captured: {time.time()}")
@@ -329,25 +337,40 @@ class WenetPiCamera2(object):
             self.capture_in_progress = True
             self.cam.stop()
 
+        if len(focus_fom)>0:
+            self.debug_message(f"Focus FoM Values: {str(focus_fom)}")
+
         # Otherwise, continue to pick the 'best' image based on filesize.
         self.debug_message("Choosing Best Image.")
-        pic_list = glob.glob("%s_*.jpg" % self.temp_filename_prefix)
-        pic_sizes = []
-        # Iterate through list of images and get the file sizes.
-        for pic in pic_list:
-            pic_sizes.append(os.path.getsize(pic))
-        _largest_pic_idx = pic_sizes.index(max(pic_sizes))
-        largest_pic = pic_list[_largest_pic_idx]
+
+        if self.use_focus_fom and len(focus_fom) > 0:
+            # Use FocusFoM data to pick the best image.
+            _best_pic_idx = focus_fom.index(max(focus_fom))
+            best_pic = "%s_%d.jpg" % (self.temp_filename_prefix,_best_pic_idx)
+            
+        else:
+            # Otherwise use the filesize of the resultant JPEG files.
+            # Bigger JPEG = Sharper image
+            pic_list = glob.glob("%s_*.jpg" % self.temp_filename_prefix)
+            pic_sizes = []
+            # Iterate through list of images and get the file sizes.
+            for pic in pic_list:
+                pic_sizes.append(os.path.getsize(pic))
+            _best_pic_idx = pic_sizes.index(max(pic_sizes))
+            best_pic = pic_list[_best_pic_idx]
 
         # Report the image pick results.
-        if 'LensPosition' in img_metadata[_largest_pic_idx]:
-            self.debug_message(f"Best Image was #{_largest_pic_idx}, Lens Pos: {img_metadata[_largest_pic_idx]['LensPosition']:.4f}")
+        if 'LensPosition' in img_metadata[_best_pic_idx]:
+            if self.use_focus_fom:
+                self.debug_message(f"Best Image was #{_best_pic_idx}, Lens Pos: {img_metadata[_best_pic_idx]['LensPosition']:.4f}, FocusFoM: {img_metadata[_best_pic_idx]['FocusFoM']}")
+            else:
+                self.debug_message(f"Best Image was #{_best_pic_idx}, Lens Pos: {img_metadata[_best_pic_idx]['LensPosition']:.4f}")
         else:
-            self.debug_message(f"Best Image was #{_largest_pic_idx}")
+            self.debug_message(f"Best Image was #{_best_pic_idx}")
 
         # Copy best image to target filename.
         self.debug_message("Copying image to storage with filename %s" % filename)
-        os.system("cp %s %s" % (largest_pic, filename))
+        os.system("cp %s %s" % (best_pic, filename))
 
         # Clean up temporary images.
         os.system("rm %s_*.jpg" % self.temp_filename_prefix)

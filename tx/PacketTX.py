@@ -290,14 +290,27 @@ class PacketTX(object):
             _disk_percent = -1.0
 
         _lens_position = -999.0
+        _sensor_temperature = -999.0
+        _focus_fom = -999.0
         if cam_metadata:
+            # {'SensorTimestamp': 390269427000, 'ScalerCrop': (0, 0, 4608, 2592), 'ScalerCrops': [(0, 0, 4608, 2592)], 'AfPauseState': 0, 
+            # 'AfState': 2, 'ExposureTime': 59994, 'FocusFoM': 21380, 'AnalogueGain': 2.081300735473633, 
+            # 'AeLocked': True, 'ColourCorrectionMatrix': (1.7214878797531128, -0.46079355478286743, -0.26070430874824524, -0.3001042306423187, 1.5704208612442017, -0.27031660079956055, 0.150499626994133, -1.1309722661972046, 1.9804826974868774),
+            # 'FrameDuration': 69669, 'SensorTemperature': 65.0, 'DigitalGain': 1.0001286268234253, 'LensPosition': 1.701196312904358, 
+            # 'Lux': 107.27578735351562, 'ColourTemperature': 2927, 'ColourGains': (1.459670066833496, 2.9101195335388184), 'SensorBlackLevels': (4096, 4096, 4096, 4096)}
             if 'LensPosition' in cam_metadata:
                 _lens_position = cam_metadata['LensPosition']
+
+            if 'SensorTemperature' in cam_metadata:
+                _sensor_temperature = cam_metadata['SensorTemperature']
+
+            if 'FocusFoM' in cam_metadata:
+                _focus_fom = float(cam_metadata['FocusFoM'])
 
 
         # Construct the packet
         try:
-            gps_packet = struct.pack(">BHIBffffffBBBffHfffff",
+            gps_packet = struct.pack(">BHIBffffffBBBffHfffffff",
                 1,  # Packet ID for the GPS Telemetry Packet.
                 gps_data['week'],
                 int(gps_data['iTOW']*1000), # Convert the GPS week value to milliseconds, and cast to an int.
@@ -319,7 +332,9 @@ class PacketTX(object):
                 _load_avg_5,
                 _load_avg_15,
                 _disk_percent,
-                _lens_position
+                _lens_position,
+                _sensor_temperature,
+                _focus_fom
                 )
 
             self.queue_telemetry_packet(gps_packet)
