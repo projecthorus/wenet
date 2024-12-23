@@ -76,6 +76,10 @@ OVERSAMPLING=8	 # FSK Demod Oversampling rate. Not used in GQRX mode.
 #BAUD_RATE=4800
 #OVERSAMPLING=200
 
+# UDP Port used for Wenet inter-process communication.
+# If you are intenting on running more than one Wenet instance on the same computer
+# (e.g. multiple docker containers), use a different port for each instance.
+IMAGE_PORT=7890
 
 #
 # Main Script Start... Don't edit anything below this unless you know what you're doing!
@@ -90,11 +94,11 @@ if [ "$RX_FLOW" = "GQRX" ]; then
 fi
 
 # Start up the SSDV Uploader script and push it into the background.
-python ssdvuploader.py $MYCALL &
+python ssdvuploader.py --image_port $IMAGE_PORT $MYCALL &
 SSDV_UPLOAD_PID=$!
 
 # Start the Web Interface Server
-python wenetserver.py $MYCALL &
+python wenetserver.py --image_port $IMAGE_PORT $MYCALL &
 WEB_VIEWER_PID=$!
 
 
@@ -126,9 +130,9 @@ if [ "$RX_FLOW" = "IQ" ]; then
     echo "Using Complex Samples."
 
 	rtl_sdr -s $SDR_RATE -f $RX_SSB_FREQ -g $GAIN - | \
-	./fsk_demod --cu8 -s --stats=100 2 $SDR_RATE $BAUD_RATE - - 2> >(python fskstatsudp.py --rate 1 --freq $RX_SSB_FREQ --samplerate $SDR_RATE) | \
+	./fsk_demod --cu8 -s --stats=100 2 $SDR_RATE $BAUD_RATE - - 2> >(python fskstatsudp.py --rate 1 --freq $RX_SSB_FREQ --samplerate $SDR_RATE --image_port $IMAGE_PORT ) | \
 	./drs232_ldpc - -  -vv 2> /dev/null | \
-	python rx_ssdv.py --partialupdate 16 --headless
+	python rx_ssdv.py --partialupdate 16 --headless --image_port $IMAGE_PORT 
 elif [ "$RX_FLOW" = "GQRX" ]; then
 	# GQRX Mode - take 48kHz real samples from GQRX via UDP.
 	# TODO: Check the following netcat command works OK under all OSes...
@@ -136,9 +140,9 @@ elif [ "$RX_FLOW" = "GQRX" ]; then
 	# Might need to try: nc -l -u -p 7355 localhost
 	echo "Receiving samples from GQRX on UDP:localhost:7355"
 	nc -l -u localhost 7355 | \
-	./fsk_demod -s --stats=100 -b 1 -u 23500 2 48000 $BAUD_RATE - - 2> >(python fskstatsudp.py --rate 1 --freq $RX_SSB_FREQ --samplerate $SDR_RATE --real) | \
+	./fsk_demod -s --stats=100 -b 1 -u 23500 2 48000 $BAUD_RATE - - 2> >(python fskstatsudp.py --rate 1 --freq $RX_SSB_FREQ --samplerate $SDR_RATE --real --image_port $IMAGE_PORT ) | \
 	./drs232_ldpc - -  -vv 2> /dev/null | \
-	python rx_ssdv.py --partialupdate 4 --headless
+	python rx_ssdv.py --partialupdate 4 --headless --image_port $IMAGE_PORT 
 else
 	# If using a RTLSDR that has a DC spike (i.e. either has a FitiPower FC0012 or Elonics E4000 Tuner),
 	# we receive below the centre frequency, and perform USB demodulation.
@@ -147,9 +151,9 @@ else
 	rtl_sdr -s $SDR_RATE -f $RX_SSB_FREQ -g $GAIN - | csdr convert_u8_f | \
 	csdr bandpass_fir_fft_cc 0.05 0.45 0.05 | csdr realpart_cf | \
 	csdr gain_ff 0.5 | csdr convert_f_s16 | \
-	./fsk_demod -s --stats=100 2 $SDR_RATE $BAUD_RATE - - 2> >(python fskstatsudp.py --rate 1 --freq $RX_SSB_FREQ --samplerate $SDR_RATE --real) | \
+	./fsk_demod -s --stats=100 2 $SDR_RATE $BAUD_RATE - - 2> >(python fskstatsudp.py --rate 1 --freq $RX_SSB_FREQ --samplerate $SDR_RATE --real --image_port $IMAGE_PORT ) | \
 	./drs232_ldpc - -  -vv 2> /dev/null | \
-	python rx_ssdv.py --partialupdate 16 --headless
+	python rx_ssdv.py --partialupdate 16 --headless --image_port $IMAGE_PORT 
 
 fi
 

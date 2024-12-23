@@ -3,8 +3,8 @@ Description=wenet_tx
 After=basic.target
 
 [Service]
-# Update this path if not running as the pi user!
-ExecStart=/home/pi/wenet/start_tx_systemd.sh
+# Update this path if the wenet files are not in the pi user's home directory!
+ExecStart=/home/pi/wenet/start_tx.sh
 Restart=always
 RestartSec=30
 # This one too!

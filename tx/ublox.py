@@ -948,7 +948,7 @@ class UBloxGPS(object):
         'leapS':        0,      # GPS Leap Seconds (Difference between GPS time and UTC time)
         'timestamp':    " ",    # ISO-8601 Compliant Date-code (generate by Python's datetime.isoformat() function)
         'datetime': datetime.datetime.utcnow(),       # Fix time as a datetime object.
-        'dynamic_model': 20      # Current dynamic model in use.
+        'dynamic_model': 255      # Current dynamic model in use.
     }
     # Lock files for writing and reading to the internal state dictionary.
     state_writelock = False
@@ -1214,10 +1214,13 @@ class UBloxGPS(object):
             else:
                 pass
 
+        
+        print("GPS RX thread closed.")
+
     def close(self):
         """ Close GPS Connection """
         self.rx_running = False
-        time.sleep(0.5)
+        time.sleep(2)
         self.gps.close()
         if self.log_file != None:
             self.log_file.close()
@@ -1226,17 +1229,84 @@ if __name__ == "__main__":
     """ Basic test script for the above UBloxGPS class. 
     Sets up GPS and prints out basic position information.
     """
+    import argparse
+    import logging
     import sys
+    import time
 
-    def gps_test(state):
-        print(state)
+    parser = argparse.ArgumentParser()
+    parser.add_argument("serial_port", type=str, help="uBlox GPS Serial Port. For USB-attached uBlox chipsets, this is usually /dev/ttyACM0")
+    parser.add_argument("--baudrate", default=115200, type=int, help="uBlox GPS baud rate. for USB-attached chipsets this doesn't matter. Defaults to 115200 baud.")
+    parser.add_argument("--waitforlock", default=None, type=int, help="If set, exit after the GPS has obtained lock, or a timeout (in minutes) is reached.")
+    parser.add_argument("--lockcount", default=60, type=int, help="If waitforlock is specified, wait until the GPS reports lock for this many sequential fixes. Default: 60")
+    parser.add_argument("--locksats", default=None, type=int, help="If waitforlock is specified, also wait until the GPS reports this many SVs used in its solution. Default: None")
+    parser.add_argument("--ntp", action='store_true', default=False, help="Push time updates into NTPDSHM.")
+    parser.add_argument("-v", "--verbose", action='store_true', default=False, help="Show additional debug info.")
+    args = parser.parse_args()
+
+    if args.verbose:
+        logging_level = logging.DEBUG
+    else:
+        logging_level = logging.INFO
+
+    # Set up logging
+    logging.basicConfig(format="%(asctime)s %(levelname)s: %(message)s", level=logging_level)
+
+    gps = None
+    lock_counter = 0
+    start_time = time.time()
+
+    lock_acheived = False
+
+    def gps_callback(state):
+        global args, lock_counter, start_time, gps, lock_acheived
+
+        if args.waitforlock:
+
+            # If we have a GPS fix
+            if state['gpsFix'] == 3:
+                if args.locksats:
+                    if state['numSV'] >= args.locksats:
+                        lock_counter += 1
+                    else:
+                        lock_counter = 0
+                else:
+                    lock_counter += 1
+            else:
+                lock_counter = 0
+            logging.info(f"Lock Counter: {lock_counter}/{args.lockcount}")
+
+            if lock_counter >= args.lockcount:
+                logging.info(f"GNSS lock maintained for {lock_counter} fixes! Exiting..")
+                lock_acheived = True
+
+        logging.info(f"GPS State: {state}")
 
 
-    gps = UBloxGPS(port=sys.argv[1], callback=gps_test, update_rate_ms=500, dynamic_model=DYNAMIC_MODEL_AIRBORNE1G, ntpd_update=True)
+    gps = UBloxGPS(
+        port=args.serial_port, 
+        baudrate=args.baudrate,
+        callback=gps_callback, 
+        update_rate_ms=500, 
+        dynamic_model=DYNAMIC_MODEL_AIRBORNE1G, 
+        ntpd_update=args.ntp
+        )
 
     try:
         while True:
             time.sleep(1)
+
+            if args.waitforlock:
+                if ((time.time() - start_time) > (args.waitforlock*60)):
+                    logging.critical("Reached lock timeout! Exiting...")
+                    gps.close()
+                    sys.exit(0)
+
+                if lock_acheived:
+                    logging.info("Acheived GNSS lock!")
+                    gps.close()
+                    time.sleep(2)
+                    sys.exit(0)
 
     except KeyboardInterrupt:
         gps.close()

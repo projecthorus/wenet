@@ -113,7 +113,7 @@ class SSDVUploader(object):
 
 
     def ssdv_upload_single(self, packet):
-        _packet_dict = self.ssdv_encode_packet(packet,callsign)
+        _packet_dict = self.ssdv_encode_packet(packet)
 
         _attempts = 1
         while _attempts <= self.upload_retries:
@@ -354,6 +354,7 @@ if __name__ == "__main__":
     parser.add_argument("--file_mask", default="*.bin", help="File mask to watch (Defaut: *.bin)")
     parser.add_argument("--queue_size", default=8192, type=int, help="Uploader queue size (Default: 8192 packets = ~2MiB)")
     parser.add_argument("--upload_block_size", default=256, type=int, help="Upload block size (Default: 256 packets uploaded at a time.)")
+    parser.add_argument("--image_port", type=int, default=None, help="UDP port used for communication between Wenet decoder processes. Default: 7890")
     parser.add_argument("-v", "--verbose", action='store_true', default=False, help="Verbose logging output.")
     args = parser.parse_args()
 
@@ -367,6 +368,10 @@ if __name__ == "__main__":
     logging.getLogger("requests").setLevel(logging.CRITICAL)
     logging.getLogger("urllib3").setLevel(logging.CRITICAL)
 
+
+    # Overwrite the image UDP port if it has been provided
+    if args.image_port:
+        WENET_IMAGE_UDP_PORT = args.image_port
 
     _uploader = SSDVUploader(
         uploader_callsign = args.callsign,

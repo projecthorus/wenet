@@ -24,16 +24,18 @@ fi
 : "${BAUD_RATE:=115177}"
 : "${OVERSAMPLING:=8}"
 : "${UDP_PORT:=0}"
+: "${WEB_PORT:=5003}"
+: "${IMAGE_PORT:=7890}"
 
 # Start up the SSDV Uploader script and push it into the background.
-python3 ssdvuploader.py "$MYCALL" &
+python3 ssdvuploader.py --image_port "$IMAGE_PORT" "$MYCALL" &
 SSDV_UPLOAD_PID=$!
 
 # Start the Web Interface Server
 if [ "$UDP_PORT" = "0" ]; then
-  python3 wenetserver.py "$MYCALL" &
+  python3 wenetserver.py "$MYCALL" --image_port "$IMAGE_PORT" -l "$WEB_PORT" &
 else
-  python3 wenetserver.py "$MYCALL" -u "$UDP_PORT" &
+  python3 wenetserver.py "$MYCALL" -u "$UDP_PORT" --image_port "$IMAGE_PORT" -l "$WEB_PORT" &
 fi
 WEB_VIEWER_PID=$!
 
@@ -44,22 +46,34 @@ SDR_RATE=$(("$BAUD_RATE" * "$OVERSAMPLING"))
 # The fsk_demod acquisition window is from Rs/2 to Fs/2 - Rs.
 # Given Fs is Rs * Os  (Os = oversampling), we can calculate the required tuning offset with the equation:
 # Offset = Fcenter - Rs*(Os/4 - 0.25)
-RX_SSB_FREQ=$(echo "$RXFREQ - $BAUD_RATE * ($OVERSAMPLING/4 - 0.25)" | bc)
+# /1 to return integer
+RX_SSB_FREQ=$(echo "($RXFREQ - $BAUD_RATE * ($OVERSAMPLING/4 - 0.25))/1" | bc)
 
 echo "Using SDR Sample Rate: $SDR_RATE Hz"
 echo "Using SDR Centre Frequency: $RX_SSB_FREQ Hz"
 
-if [ "$BIAS" = "1" ]; then
-  echo "Enabling Bias Tee"
-  rtl_biast -d "$DEVICE" -b 1
-fi
+if [ "$SDR_TYPE" = "RTLSDR" ] ; then
+  if [ "$BIAS" = "1" ]; then
+    echo "Enabling Bias Tee"
+    rtl_biast -d "$DEVICE" -b 1
+  fi
 
-# Start up the receive chain.
-echo "Using Complex Samples."
-rtl_sdr -d "$DEVICE" -s "$SDR_RATE" -f "$RX_SSB_FREQ" -g "$GAIN" - | \
-./fsk_demod --cu8 -s --stats=100 2 "$SDR_RATE" "$BAUD_RATE" - - 2> >(python3 fskstatsudp.py --rate 1 --freq $RX_SSB_FREQ --samplerate $SDR_RATE) | \
-./drs232_ldpc - -  -vv 2> /dev/null | \
-python3 rx_ssdv.py --partialupdate 16 --headless
+  # Start up the receive chain.
+  echo "Using Complex Samples."
+  rtl_sdr -d "$DEVICE" -s "$SDR_RATE" -f "$RX_SSB_FREQ" -g "$GAIN" - | \
+  ./fsk_demod --cu8 -s --stats=100 2 "$SDR_RATE" "$BAUD_RATE" - - 2> >(python3 fskstatsudp.py --rate 1 --freq $RX_SSB_FREQ --samplerate $SDR_RATE) | \
+  ./drs232_ldpc - -  -vv 2> /dev/null | \
+  python3 rx_ssdv.py --partialupdate 16 --headless
+elif [ "$SDR_TYPE" = "KA9Q" ] ; then
+  # Start receiver
+  echo "Starting pcmcat and demodulator"
+  pcmcat "$DEVICE" | \
+  ./fsk_demod --cs16 -s --stats=100 2 "$SDR_RATE" "$BAUD_RATE" - - 2> >(python3 fskstatsudp.py --rate 1 --freq $RX_SSB_FREQ --samplerate $SDR_RATE --image_port $IMAGE_PORT) | \
+  ./drs232_ldpc - -  -vv 2> /dev/null | \
+  python3 rx_ssdv.py --partialupdate 16 --headless --image_port $IMAGE_PORT
+else
+  echo "No valid SDR type specified! Please enter RTLSDR or KA9Q!"
+fi
 
 # Kill off the SSDV Uploader and the GUIs
 kill $SSDV_UPLOAD_PID

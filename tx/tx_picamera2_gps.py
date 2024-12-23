@@ -3,7 +3,7 @@
 #	PiCamera2 Library Transmitter Script - with GPS Data and Logo Overlay.
 #	Capture images from the PiCam, and transmit them.
 #
-#	Copyright (C) 2023  Mark Jessop <vk5qi@rfhead.net>
+#	Copyright (C) 2024  Mark Jessop <vk5qi@rfhead.net>
 #	Released under GNU GPL v3 or later
 #
 
@@ -11,18 +11,46 @@ import PacketTX
 import WenetPiCamera2
 import ublox
 import argparse
+import logging
 import time
 import os
 import subprocess
 import traceback
+from radio_wrappers import *
+
 
 parser = argparse.ArgumentParser()
 parser.add_argument("callsign", default="N0CALL", help="Payload Callsign")
-parser.add_argument("--gps", default="/dev/ttyACM0", help="uBlox GPS Serial port. Defaults to /dev/ttyACM0")
+parser.add_argument("--gps", default="none", help="uBlox GPS Serial port. Defaults to /dev/ttyACM0")
+parser.add_argument("--gpsbaud", default=115200, type=int, help="uBlox GPS Baud rate. (Default: 115200)")
 parser.add_argument("--logo", default="none", help="Optional logo to overlay on image.")
-parser.add_argument("--txport", default="/dev/ttyAMA0", type=str, help="Transmitter serial port. Defaults to /dev/ttyAMA0")
-parser.add_argument("--baudrate", default=115200, type=int, help="Transmitter baud rate. Defaults to 115200 baud.")
+parser.add_argument("--rfm98w", default=0, type=int, help="If set, configure a RFM98W on this SPI device number.")
+parser.add_argument("--frequency", default=443.500, type=float, help="Transmit Frequency (MHz). (Default: 443.500 MHz)")
+parser.add_argument("--baudrate", default=115200, type=int, help="Wenet TX baud rate. (Default: 115200).")
+parser.add_argument("--serial_port", default="/dev/ttyAMA0", type=str, help="Serial Port for modulation.")
+parser.add_argument("--tx_power", default=17, type=int, help="Transmit power in dBm (Default: 17 dBm, 50mW. Allowed values: 2-17)")
+parser.add_argument("--vflip", action='store_true', default=False, help="Flip captured image vertically.")
+parser.add_argument("--hflip", action='store_true', default=False, help="Flip captured image horizontally.")
+parser.add_argument("--resize", type=float, default=0.5, help="Resize raw image from camera by this factor before transmit (in both X/Y, to nearest multiple of 16 pixels). Default=0.5")
+parser.add_argument("--whitebalance", type=str, default='daylight', help="White Balance setting: Auto, Daylight, Cloudy, Incandescent, Tungesten, Fluorescent, Indoor")
+parser.add_argument("--lensposition", type=float, default=-1.0, help="For PiCam v3, set the lens position. Default: -1 = Continuous Autofocus")
+parser.add_argument("--afwindow", type=str, default=None, help="For PiCam v3 Autofocus mode, set the AutoFocus window, x,y,w,h , in fractions of frame size. (Default: None = default)")
+parser.add_argument("--afoffset", type=float, default=0.0, help="For PiCam v3 Autofocus mode, offset the lens by this many dioptres (Default: 0 = No offset)")
+parser.add_argument("--exposure", type=float, default=0.0, help="Exposure compensation. -8.0 to 8.0. Sets the ExposureValue control. (Default: 0.0)")
+parser.add_argument("--use_focus_fom", action='store_true', default=False, help="Use Focus FoM data instead of file size for image selection.")
+parser.add_argument("--num_images", type=int, default=5, help="Number of images to capture on each cycle. (Default: 5)")
+parser.add_argument("--image_delay", type=float, default=1.0, help="Delay time between each image capture. (Default: 1 second)")
+parser.add_argument("-v", "--verbose", action='store_true', default=False, help="Show additional debug info.")
 args = parser.parse_args()
+
+if args.verbose:
+	logging_level = logging.DEBUG
+else:
+	logging_level = logging.INFO
+
+# Set up logging
+logging.basicConfig(format="%(asctime)s %(levelname)s: %(message)s", level=logging_level)
+
 
 callsign = args.callsign
 # Truncate callsign if it's too long.
@@ -31,9 +59,23 @@ if len(callsign) > 6:
 
 print("Using Callsign: %s" % callsign)
 
+if args.rfm98w is not None:
+	radio = RFM98W_Serial(
+		spidevice = args.rfm98w,
+		frequency = args.frequency,
+		baudrate = args.baudrate,
+		serial_port = args.serial_port,
+		tx_power_dbm = args.tx_power
+	)
+# Other radio options would go here.
+else:
+	logging.critical("No radio type specified! Exiting")
+	sys.exit(1)
+
 
 # Start up Wenet TX.
-tx = PacketTX.PacketTX(serial_port=args.txport, serial_baud=args.baudrate, callsign=callsign, log_file="debug.log", udp_listener=55674)
+picam = None
+tx = PacketTX.PacketTX(radio=radio, callsign=callsign, log_file="debug.log", udp_listener=55674)
 tx.start_tx()
 
 # Sleep for a second to let the transmitter fire up.
@@ -46,18 +88,26 @@ system_time_set = False
 # Disable Systemctl NTP synchronization so that we can set the system time on first GPS lock.
 # This is necessary as NTP will refuse to sync the system time to the information we feed it via ntpshm unless
 # the system clock is already within a few seconds.
-ret_code = os.system("timedatectl set-ntp 0")
-if ret_code == 0:
-	tx.transmit_text_message("GPS Debug: Disabled NTP Sync until GPS lock.")
-else:
-	tx.transmit_text_message("GPS Debug: Could not disable NTP sync.")
+if args.gps.lower() != 'none':
+	ret_code = os.system("timedatectl set-ntp 0")
+	if ret_code == 0:
+		tx.transmit_text_message("GPS Debug: Disabled NTP Sync until GPS lock.")
+	else:
+		tx.transmit_text_message("GPS Debug: Could not disable NTP sync.")
 
 def handle_gps_data(gps_data):
 	""" Handle GPS data passed to us from the UBloxGPS instance """
-	global max_altitude, tx, system_time_set
+	global max_altitude, tx, system_time_set, picam
+
+	# Try and grab metadata from the camera. We send some of this in the telemetry.
+	try:
+		cam_metadata = picam.get_camera_metadata()
+		#print(cam_metadata)
+	except:
+		cam_metadata = None
 
 	# Immediately generate and transmit a GPS packet.
-	tx.transmit_gps_telemetry(gps_data)
+	tx.transmit_gps_telemetry(gps_data, cam_metadata)
 
 	# If we have GPS fix, update the max altitude field.
 	if (gps_data['altitude'] > max_altitude) and (gps_data['gpsFix'] == 3):
@@ -87,14 +137,20 @@ def handle_gps_data(gps_data):
 
 
 # Try and start up the GPS rx thread.
+
 try:
-	gps = ublox.UBloxGPS(port=args.gps, 
-		dynamic_model = ublox.DYNAMIC_MODEL_AIRBORNE1G, 
-		update_rate_ms = 1000,
-		debug_ptr = tx.transmit_text_message,
-		callback = handle_gps_data,
-		log_file = 'gps_data.log'
-		)
+	if args.gps.lower() != 'none':
+		gps = ublox.UBloxGPS(port=args.gps, 
+			dynamic_model = ublox.DYNAMIC_MODEL_AIRBORNE1G,
+			baudrate= args.gpsbaud,
+			update_rate_ms = 1000,
+			debug_ptr = tx.transmit_text_message,
+			callback = handle_gps_data,
+			log_file = 'gps_data.log'
+			)
+	else:
+		tx.transmit_text_message("No GPS configured. No GPS data will be overlaid.")
+		gps = None
 except Exception as e:
 	tx.transmit_text_message("ERROR: Could not Open GPS - %s" % str(e), repeats=5)
 	gps = None
@@ -135,7 +191,7 @@ def post_process_image(filename):
 		gps_string = ""
 
 	# Build up our imagemagick 'convert' command line
-	overlay_str = "convert %s -gamma 0.8 -font Helvetica -pointsize 40 -gravity North " % filename 
+	overlay_str = "timeout -k 5 180 convert %s -gamma 0.8 -font Helvetica -pointsize 40 -gravity North " % filename 
 	overlay_str += "-strokewidth 2 -stroke '#000C' -annotate +0+5 \"%s\" " % gps_string
 	overlay_str += "-stroke none -fill white -annotate +0+5 \"%s\" " % gps_string
 	# Add on logo overlay argument if we have been given one.
@@ -145,19 +201,28 @@ def post_process_image(filename):
 	overlay_str += filename
 
 	tx.transmit_text_message("Adding overlays to image.")
-	os.system(overlay_str)
+	return_code = os.system(overlay_str)
+	if return_code != 0:
+		tx.transmit_text_message("Image Overlay operation failed! (Possible kernel Oops? Maybe set arm_freq to 700 MHz)")
 
 	return
 
 
 # Finally, initialise the PiCam capture object.
 picam = WenetPiCamera2.WenetPiCamera2( 
-		tx_resolution=(1936,1088), 
+		tx_resolution=args.resize,
 		callsign=callsign, 
-		num_images=5, 
+		num_images=args.num_images,
+		image_delay=args.image_delay, 
 		debug_ptr=tx.transmit_text_message, 
-		vertical_flip=False, 
-		horizontal_flip=False)
+		vertical_flip=args.vflip, 
+		horizontal_flip=args.hflip,
+		whitebalance=args.whitebalance,
+		lens_position=args.lensposition,
+		af_window=args.afwindow,
+		af_offset=args.afoffset,
+		use_focus_fom=args.use_focus_fom
+		)
 # .. and start it capturing continuously.
 picam.run(destination_directory="./tx_images/", 
 	tx = tx,
@@ -177,7 +242,8 @@ except KeyboardInterrupt:
 	print("Closing")
 	picam.stop()
 	tx.close()
-	gps.close()
+	if gps:
+		gps.close()
 
 
 
