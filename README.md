@@ -1,6 +1,8 @@
 # Wenet - The Swift One
 Transmit and Receive code for the Project Horus High-Speed Imagery Payload - 'Wenet'.
 
+(Pronuncuation: _when-et_ [wɛn-ɛt])
+
 ![Image downlinked via Wenet on Horus 42](http://rfhead.net/temp/horus_42_small.jpg)
 
 The above image was captured on Horus 42, and downlinked via Wenet. The original downlinked resolution was 1920x1440, and has since been re-sized. The full resolution version is available here: http://rfhead.net/temp/horus_42_full.jpg
