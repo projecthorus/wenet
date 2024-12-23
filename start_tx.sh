@@ -118,11 +118,12 @@ sleep 10
 # Set a fixed lens offset for the PiCam v3, in dioptres. May help with autofocus in cold temperatures.
 # The PiCam v3 can be offset by a maximum of -3 dioptres before hitting a hard-stop
 # Set this to -99.0 to set the PiCam v3 to use the entire lens travel range.
+# The modified focus mapping will be printed out on startup.
 # e.g. to offset by 1 dioptre:
 # --afoffset -1.0 \
 #
 # Use the Focus Figure-of-merit metadata to select the transmitted image, instead of selecting on file size
-# Only works for lenses with autofocus (PiCam v3)
+# Only useful for lenses with autofocus (PiCam v3)
 # --use_focus_fom
 
 python3 tx_picamera2_gps.py \

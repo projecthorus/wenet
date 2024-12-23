@@ -152,11 +152,21 @@ class WenetPiCamera2(object):
         if self.af_offset != 0:
             tuning = Picamera2.load_tuning_file("imx708.json")
             map = Picamera2.find_tuning_algo(tuning, "rpi.af")["map"]
-            #print(map)
-            offset_hw = self.af_offset * (map[3]-map[1])/(map[2]-map[0])
-            for i in range(1, len(map), 2):
-                map[i] += offset_hw
-            #print(Picamera2.find_tuning_algo(tuning, "rpi.af")["map"])
+            self.debug_message(f"Default Focus Mapping: {map}")
+
+            if self.af_offset == -99:
+                # Custom map for testing the full extents of the lens range.
+                map[0] = 0.0
+                map[1] = 0.0
+                map[2] = 15.0
+                map[3] = 1024.0
+            else:
+                # Otherwise, apply an offset
+                offset_hw = self.af_offset * (map[3]-map[1])/(map[2]-map[0])
+                for i in range(1, len(map), 2):
+                    map[i] += offset_hw
+            
+            self.debug_message(f"Modified Focus Mapping: {Picamera2.find_tuning_algo(tuning, 'rpi.af')['map']}")
 
             self.cam = Picamera2(0, tuning=tuning)
         
