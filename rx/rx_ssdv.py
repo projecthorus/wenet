@@ -30,9 +30,18 @@ parser.add_argument("--partialupdate", default=0, help="Push partial updates eve
 parser.add_argument("-v", "--verbose", action='store_true', default=False, help="Verbose output")
 parser.add_argument("--headless", action='store_true', default=False, help="Headless mode - broadcasts additional data via UDP.")
 parser.add_argument("--rximages", default="./rx_images/", help="Location to save RX images and telemetry to.")
+parser.add_argument("--image_port", type=int, default=None, help="UDP port used for communication between Wenet decoder processes. Default: 7890")
+parser.add_argument("--telemetry_port", type=int, default=None, help="UDP port used to emit telemetry to other applications. Default: 55672")
 args = parser.parse_args()
 
 RX_IMAGES_DIR = args.rximages
+
+# Overwrite the image and telemetry UDP ports if they have been provided
+if args.image_port:
+	WENET_IMAGE_UDP_PORT = args.image_port
+
+if args.telemetry_port:
+	WENET_TELEMETRY_UDP_PORT = args.telemetry_port
 
 # Set up log output.
 if args.verbose:
@@ -50,6 +59,8 @@ LOG_FILENAME = os.path.join(args.rximages,datetime.datetime.utcnow().strftime("%
 
 # GUI updates are only sent locally.
 def trigger_gui_update(filename, text = "None", metadata = None):
+	global WENET_IMAGE_UDP_PORT
+
 	message = 	{'filename': filename,
 				'text': text,
 				'metadata': metadata}
@@ -62,6 +73,7 @@ def trigger_gui_update(filename, text = "None", metadata = None):
 # Telemetry packets are send via UDP broadcast in case there is other software on the local
 # network that wants them.
 def broadcast_telemetry_packet(data, headless=False):
+	global WENET_IMAGE_UDP_PORT, WENET_TELEMETRY_UDP_PORT
 	telemetry_socket = socket.socket(socket.AF_INET,socket.SOCK_DGRAM)
 	# Set up the telemetry socket so it can be re-used.
 	telemetry_socket.setsockopt(socket.SOL_SOCKET,socket.SO_BROADCAST,1)
@@ -152,6 +164,11 @@ temp_f = open("rxtemp.bin",'wb')
 
 
 while True:
+
+	# These reads can hang if the rtl_sdr locks up
+	# We should add some kind of watchdog system around this, so if we don't seee
+	# any packets for X minutes, the process exits, and is (hopefully) restarted by systemd.
+
 	if args.hex:
 		# Incoming data is as a hexadecimal string.
 		# We can read these in safely using sys.stdin.readline(), 
@@ -212,7 +229,7 @@ while True:
 
 			# Only proceed if there are no decode errors.
 			if packet_info['error'] != 'None':
-				logging.error(message['error'])
+				logging.error(packet_info['error'])
 				continue
 
 			if (packet_info['image_id'] != current_image) or (packet_info['callsign'] != current_callsign) :
@@ -264,4 +281,5 @@ while True:
 			logging.debug("Unknown Packet Format.")
 	
 	except Exception as e:
+		logging.exception(e)
 		logging.error("Error handling packet - " + str(e))
