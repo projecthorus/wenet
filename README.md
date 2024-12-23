@@ -24,9 +24,11 @@ Bench [testing](https://www.rowetel.com/?p=5080) has shown that for a receiver w
 * v0.6 - Updated to the latest fsk_demod version from codec2-dev. This allows reception without requiring CSDR.
 * v0.7 - More tweaks to the start_rx script to better support lower-rate modes. Update to the latest fsk_demod in the instructions.
 * v1.0 - Docker image released, documentation updated.
+* v1.2 - Switched to the libcamera2 library, support for PiCam v3, and many additions to downlink telemetry.
+* v1.2.1 - Further optimizations for the PiCam v3. Flown on [Horus 63](https://www.areg.org.au/archives/212110).
 
 ## How do I Receive it?
 You can receive Wenet transmissions using a Linux computer, a RTLSDR, and a small yagi antenna (sometimes a vertical can work too). You can find a guide on how to get setup to receive imagery here: https://github.com/projecthorus/wenet/wiki/Wenet-RX-Instructions-(Linux-using-Docker)
 
 ## How do I Transmit it?
-A guide on setting up a Wenet transmitter using a Raspberry Pi Zero W and a HopeRF RFM98W shield is here: https://github.com/projecthorus/wenet/wiki/Wenet-TX-Payload-Instructions
+A guide on setting up a Wenet transmitter using a Raspberry Pi Zero W2 and a HopeRF RFM98W shield is here: https://github.com/projecthorus/wenet/wiki/Wenet-TX-Payload-Instructions
