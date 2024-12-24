@@ -159,7 +159,7 @@ class WenetPiCamera2(object):
                 map[0] = 0.0
                 map[1] = 0.0
                 map[2] = 15.0
-                map[3] = 1024.0
+                map[3] = 1023.0
             else:
                 # Otherwise, apply an offset
                 offset_hw = self.af_offset * (map[3]-map[1])/(map[2]-map[0])
