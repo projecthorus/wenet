@@ -33,8 +33,8 @@ GAIN=0
 # Enable this is you are intending on powering a preamplifer via coax from your RTLSDR
 BIAS=0
 
-# Upload Enable. Set this to TRUE to upload images and position data, or FALSE to disable uploading
-UPLOAD_ENABLE=TRUE
+# Upload Enable (1) or Disable (0) to control uploading to ssdv.habhub.org and SondeHub Amateur
+UPLOAD_ENABLE=1
 
 
 # Baud Rate & FSK Demod Oversampling Settings
