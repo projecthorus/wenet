@@ -26,16 +26,24 @@ fi
 : "${UDP_PORT:=0}"
 : "${WEB_PORT:=5003}"
 : "${IMAGE_PORT:=7890}"
+: "${UPLOAD_ENABLE:=1}"
 
 # Start up the SSDV Uploader script and push it into the background.
-python3 ssdvuploader.py --image_port "$IMAGE_PORT" "$MYCALL" &
-SSDV_UPLOAD_PID=$!
+if [ "$UPLOAD_ENABLE" == "1" ] ; then
+  python3 ssdvuploader.py --image_port "$IMAGE_PORT" "$MYCALL" &
+  SSDV_UPLOAD_PID=$!
+fi
 
 # Start the Web Interface Server
+NO_SONDEHUB=
+if [ "$UPLOAD_ENABLE" != "1" ] ; then
+  NO_SONDEHUB="--no_sondehub"
+fi
+
 if [ "$UDP_PORT" = "0" ]; then
-  python3 wenetserver.py "$MYCALL" --image_port "$IMAGE_PORT" -l "$WEB_PORT" &
+  python3 wenetserver.py "$MYCALL" --image_port "$IMAGE_PORT" -l "$WEB_PORT" $NO_SONDEHUB &
 else
-  python3 wenetserver.py "$MYCALL" -u "$UDP_PORT" --image_port "$IMAGE_PORT" -l "$WEB_PORT" &
+  python3 wenetserver.py "$MYCALL" -u "$UDP_PORT" --image_port "$IMAGE_PORT" -l "$WEB_PORT" $NO_SONDEHUB &
 fi
 WEB_VIEWER_PID=$!
 
