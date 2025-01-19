@@ -33,6 +33,9 @@ GAIN=0
 # Enable this is you are intending on powering a preamplifer via coax from your RTLSDR
 BIAS=0
 
+# Upload Enable. Set this to TRUE to upload images and position data, or FALSE to disable uploading
+UPLOAD_ENABLE=TRUE
+
 
 # Baud Rate & FSK Demod Oversampling Settings
 #
@@ -81,6 +84,7 @@ if [ "$SDR_TYPE" = "RTLSDR" ] ; then
 		-e IMAGE_PORT=$IMAGE_PORT \
 		-e WEB_PORT=$WEB_PORT \
 		-e SDR_TYPE=$SDR_TYPE \
+		-e UPLOAD_ENABLE=$UPLOAD_ENABLE \
 		-v ~/wenet/rx_images/:/opt/wenet/rx_images/ \
 		--device /dev/bus/usb \
 		-p $WEB_PORT:$WEB_PORT \
@@ -100,6 +104,7 @@ elif [ "$SDR_TYPE" = "KA9Q" ] ; then
 		-e IMAGE_PORT=$IMAGE_PORT \
 		-e WEB_PORT=$WEB_PORT \
 		-e SDR_TYPE=$SDR_TYPE \
+		-e UPLOAD_ENABLE=$UPLOAD_ENABLE \
 		-v ~/wenet/rx_images/:/opt/wenet/rx_images/ \
 		-v /var/run/dbus:/var/run/dbus \
 		-v /var/run/avahi-daemon/socket:/var/run/avahi-daemon/socket \
