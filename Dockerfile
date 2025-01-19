@@ -1,7 +1,7 @@
 # -------------------
 # The build container
 # -------------------
-FROM debian:buster-slim AS build
+FROM debian:bookworm-slim AS build
 
 # Install build dependencies.
 RUN apt-get update && \
@@ -44,7 +44,7 @@ RUN git clone https://github.com/ka9q/ka9q-radio.git /root/ka9q-radio && \
 # Removed numpy from this list, using system packages.
 # --no-binary numpy
 RUN --mount=type=cache,target=/root/.cache/pip pip3 install \
-  --user --no-warn-script-location --ignore-installed \
+  --user --no-warn-script-location --ignore-installed --break-system-packages \
     crcmod \
     flask \
     flask-socketio \
@@ -63,7 +63,7 @@ RUN make
 # -------------------------
 # The application container
 # -------------------------
-FROM debian:buster-slim
+FROM debian:bookworm-slim
 
 EXPOSE 5003/tcp
 
