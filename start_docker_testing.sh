@@ -1,6 +1,6 @@
 # /usr/bin/env bash
 #
-# Helper script to start up the Wenet Docker image.
+# Helper script to start up the Wenet Docker image - TESTING branch
 #
 # This script is intended to be downloaded using wget or otherwise,
 # and modified prior to use.
@@ -32,6 +32,9 @@ GAIN=0
 # Bias Tee Enable (1) or Disable (0) (RTL-SDR only)
 # Enable this is you are intending on powering a preamplifer via coax from your RTLSDR
 BIAS=0
+
+# Upload Enable (1) or Disable (0) to control uploading to ssdv.habhub.org and SondeHub Amateur
+UPLOAD_ENABLE=1
 
 
 # Baud Rate & FSK Demod Oversampling Settings
@@ -81,6 +84,7 @@ if [ "$SDR_TYPE" = "RTLSDR" ] ; then
 		-e IMAGE_PORT=$IMAGE_PORT \
 		-e WEB_PORT=$WEB_PORT \
 		-e SDR_TYPE=$SDR_TYPE \
+		-e UPLOAD_ENABLE=$UPLOAD_ENABLE \
 		-v ~/wenet/rx_images/:/opt/wenet/rx_images/ \
 		--device /dev/bus/usb \
 		-p $WEB_PORT:$WEB_PORT \
@@ -100,6 +104,7 @@ elif [ "$SDR_TYPE" = "KA9Q" ] ; then
 		-e IMAGE_PORT=$IMAGE_PORT \
 		-e WEB_PORT=$WEB_PORT \
 		-e SDR_TYPE=$SDR_TYPE \
+		-e UPLOAD_ENABLE=$UPLOAD_ENABLE \
 		-v ~/wenet/rx_images/:/opt/wenet/rx_images/ \
 		-v /var/run/dbus:/var/run/dbus \
 		-v /var/run/avahi-daemon/socket:/var/run/avahi-daemon/socket \
