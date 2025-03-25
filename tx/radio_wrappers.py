@@ -529,7 +529,7 @@ if __name__ == '__main__':
     parser.add_argument("--rfm98w-i2s", default=None, type=int, help="If set, configure a RFM98W on this SPI device number. Using I2S")
     parser.add_argument("--audio-device", default="hw:CARD=i2smaster,DEV=0", type=str, help="Sets the audio device for rfm98w-i2s mode.")
     parser.add_argument("--frequency", default=443.500, type=float, help="Transmit Frequency (MHz). (Default: 443.500 MHz)")
-    parser.add_argument("--baudrate", default=None, type=int, help="Wenet TX baud rate. (Default: 115200 for uart and 96000 for I2S).")
+    parser.add_argument("--baudrate", default=None, type=int, help="Wenet TX baud rate. (Default: 115200 for uart and 96000 for I2S). Known working I2S baudrates: 8000, 24000, 48000, 96000 ")
     parser.add_argument("--serial_port", default="/dev/ttyAMA0", type=str, help="Serial Port for modulation.")
     parser.add_argument("--tx_power", default=17, type=int, help="Transmit power in dBm (Default: 17 dBm, 50mW. Allowed values: 2-17)")
     parser.add_argument("--shutdown", default=False, action="store_true", help="Shutdown Transmitter after configuration.")
