@@ -15,7 +15,6 @@
 #
 
 
-import serial
 import sys
 import os
 import datetime
@@ -598,6 +597,8 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser()
     parser.add_argument("--rfm98w", default=None, type=int, help="If set, configure a RFM98W on this SPI device number.")
+    parser.add_argument("--rfm98w-i2s", default=None, type=int, help="If set, configure a RFM98W on this SPI device number. Using I2S")
+    parser.add_argument("--audio-device", default="hw:CARD=i2smaster,DEV=0", type=str, help="Alsa device string. Sets the audio device for rfm98w-i2s mode. (Default: hw:CARD=i2smaster,DEV=0)")
     parser.add_argument("--frequency", default=443.500, type=float, help="Transmit Frequency (MHz). (Default: 443.500 MHz)")
     parser.add_argument("--baudrate", default=115200, type=int, help="Wenet TX baud rate. (Default: 115200).")
     parser.add_argument("--serial_port", default="/dev/ttyAMA0", type=str, help="Serial Port for modulation.")
@@ -621,6 +622,13 @@ if __name__ == "__main__":
             frequency = args.frequency,
             baudrate = args.baudrate,
             serial_port = args.serial_port,
+            tx_power_dbm = args.tx_power
+        )
+    elif args.rfm98w_i2s is not None:
+        radio = RFM98W_I2S(
+            spidevice = args.rfm98w_i2s,
+            frequency = args.frequency,
+            audio_device= args.audio_device,
             tx_power_dbm = args.tx_power
         )
     # Other radio options would go here.
