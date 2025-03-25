@@ -283,19 +283,44 @@ class RFM98W_I2S(RFM98W):
     def __init__(
             self,
             spidevice=0,
+            baudrate=96000,
             frequency=443.500,
             audio_device="hw:CARD=i2smaster,DEV=0",
             tx_power_dbm=17,
             reinit_count=5000
             ):
-        # fixed baudrate for the moment
-        super().__init__(spidevice,frequency,96000,tx_power_dbm,reinit_count,led=5) # can't use 21 for LED as I2S is there
-
-
-        self.channels = 2
+        
         self.audio_width = 2 # bytes
         self.audio_rate = 48000
-        self.bytes_per_bit = ((self.audio_rate * self.channels * self.audio_width) // self.baudrate)
+        self.channels = 2
+
+        audio_rates = [8000,16000,22050,44100,48000,96000,176400,192000]
+        logging.debug(f"Searching - {baudrate}")
+        for self.audio_rate in audio_rates:
+            self.audio_bit_rate = self.audio_rate * self.channels * (self.audio_width*8)
+            self.bytes_per_bit = self.audio_bit_rate//baudrate//8
+            try:
+                actual_rf_bitrate = self.audio_bit_rate/(self.bytes_per_bit*8)
+            except ZeroDivisionError:
+                logging.debug(f"NO - {self.audio_rate}")
+                continue
+            if (self.audio_bit_rate/baudrate)%8 != 0:
+                logging.debug(f"NO - {self.audio_rate} RF bitrate = {actual_rf_bitrate}")
+            else:
+                logging.debug(f"RF bitrate = {actual_rf_bitrate}")
+                logging.debug(self.audio_rate)
+                logging.debug(self.bytes_per_bit)
+                break
+        else:
+            raise ValueError("Baudrate not suitable for soundcard.")
+
+
+        # fixed baudrate for the moment
+        super().__init__(spidevice,frequency,baudrate,tx_power_dbm,reinit_count,led=5) # can't use 21 for LED as I2S is there
+        
+        
+
+       
 
         if (
             ((self.audio_rate * self.channels * self.audio_width * 8) / self.baudrate)%8 !=0
@@ -504,13 +529,19 @@ if __name__ == '__main__':
     parser.add_argument("--rfm98w-i2s", default=None, type=int, help="If set, configure a RFM98W on this SPI device number. Using I2S")
     parser.add_argument("--audio-device", default="hw:CARD=i2smaster,DEV=0", type=str, help="Sets the audio device for rfm98w-i2s mode.")
     parser.add_argument("--frequency", default=443.500, type=float, help="Transmit Frequency (MHz). (Default: 443.500 MHz)")
-    parser.add_argument("--baudrate", default=115200, type=int, help="Wenet TX baud rate. (Default: 115200).")
+    parser.add_argument("--baudrate", default=None, type=int, help="Wenet TX baud rate. (Default: 115200 for uart and 96000 for I2S).")
     parser.add_argument("--serial_port", default="/dev/ttyAMA0", type=str, help="Serial Port for modulation.")
     parser.add_argument("--tx_power", default=17, type=int, help="Transmit power in dBm (Default: 17 dBm, 50mW. Allowed values: 2-17)")
     parser.add_argument("--shutdown", default=False, action="store_true", help="Shutdown Transmitter after configuration.")
     parser.add_argument("--test_modulation", default=False, action="store_true", help="Transmit a sequence of dummy packets as a test.")
     parser.add_argument("-v", "--verbose", action='store_true', default=False, help="Show additional debug info.")
     args = parser.parse_args()
+
+    if args.baudrate == None:
+        if args.rfm98w:
+            args.baudrate = 115200
+        elif args.rfm98w_i2s:
+            args.baudrate = 96000
 
     if args.verbose:
         logging_level = logging.DEBUG
@@ -533,6 +564,7 @@ if __name__ == '__main__':
     elif args.rfm98w_i2s is not None:
         radio = RFM98W_I2S(
             spidevice = args.rfm98w,
+            baudrate = args.baudrate,
             frequency = args.frequency,
             audio_device= args.audio_device,
             tx_power_dbm = args.tx_power
