@@ -11,3 +11,6 @@ tx/binary_debug.bin
 *.so
 tx/*.bin
 test_images
+tx/tx_images/*.jpg
+picam_temp*
+*.log
