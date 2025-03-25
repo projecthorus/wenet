@@ -37,25 +37,23 @@ except:
     HardwareInterface = None
     logging.error("Could not load SX127x. modules")
 
-class RFM98W_Serial(object):
+class RFM98W(object):
     """
-    RFM98W Wrapper for Wenet Transmission, using 2-FSK Direct-Asynchronous Modulation via a UART.
-    """
-
+    RFM98W Wrapper for Wenet Transmission, using 2-FSK Direct-Asynchronous Modulation
+    """    
     def __init__(
             self,
             spidevice=0,
             frequency=443.500,
             baudrate=115200,
-            serial_port=None,
             tx_power_dbm=17,
-            reinit_count=5000
+            reinit_count=5000,
+            led=None
             ):
         
         self.spidevice = spidevice
         self.frequency = frequency
         self.baudrate = baudrate
-        self.serial_port = serial_port
         self.tx_power_dbm = tx_power_dbm
         self.reinit_count = reinit_count
         
@@ -66,8 +64,8 @@ class RFM98W_Serial(object):
 
         self.temperature = -999
 
-        self.start()
-    
+        self.led = led
+
 
     def start(self):
         """
@@ -79,7 +77,10 @@ class RFM98W_Serial(object):
         if self.hw:
             self.hw.teardown()
 
-        self.hw = HardwareInterface(self.spidevice)
+        if self.led:
+            self.hw = HardwareInterface(self.spidevice,LED=self.led)
+        else:
+            self.hw = HardwareInterface(self.spidevice)
         self.lora = LoRaRFM98W(self.hw, verbose=False)
 
         logging.debug(f"RFM98W - SX127x Register Dump: {self.lora.backup_registers}")
@@ -138,21 +139,6 @@ class RFM98W_Serial(object):
             logging.info("RFM98W - Radio initialised!")
         else:
             logging.critical("RFM98W - TX Mode not set correctly!")
-        
-        # Now initialise the Serial port for modulation
-        if self.serial_port:
-            try:
-                self.serial = serial.Serial(self.serial_port, self.baudrate)
-                logging.info(f"RFM98W - Opened Serial port {self.serial_port} for modulation.")
-            except Exception as e:
-                logging.critical(f"Could not open serial port! Error: {str(e)}")
-                self.serial = None
-
-        else:
-            # If no serial port info provided, write out to a binary debug file.
-            self.serial = BinaryDebug()
-            logging.info("No serial port provided - using Binary Debug output (binary_debug.bin)")
-
 
 
     def shutdown(self):
@@ -176,13 +162,6 @@ class RFM98W_Serial(object):
         except:
             pass
 
-        try:
-            # Close the serial connection
-            self.serial.close()
-            logging.info("RFM98W - Closed Serial Port")
-            self.serial = None
-        except:
-            pass
 
         return
 
@@ -205,14 +184,7 @@ class RFM98W_Serial(object):
 
         return False
     
-
     def transmit_packet(self, packet):
-        """
-        Modulate serial data, using a UART.
-        """
-        if self.serial:
-            self.serial.write(packet)
-
         # Increment transmit packet counter
         self.tx_packet_count += 1
 
@@ -234,7 +206,76 @@ class RFM98W_Serial(object):
 
         return self.temperature
 
-class RFM98W_I2S(object):
+class RFM98W_Serial(RFM98W):
+    """
+    RFM98W Wrapper for Wenet Transmission, using 2-FSK Direct-Asynchronous Modulation via a UART.
+    """
+
+    def __init__(
+            self,
+            spidevice=0,
+            frequency=443.500,
+            baudrate=115200,
+            serial_port=None,
+            tx_power_dbm=17,
+            reinit_count=5000
+            ):
+        
+        self.serial_port = serial_port
+
+        super().__init__(spidevice,frequency,baudrate,tx_power_dbm,reinit_count)
+        self.start()
+    
+
+    def start(self):
+        """
+        Initialise (or re-initialise) both the RFM98W and Serial connections.
+        Configure the RFM98W into direct asynchronous FSK mode, with the appropriate power, deviation, and transmit frequency.
+        """
+        super().start()
+        # Now initialise the Serial port for modulation
+        if self.serial_port:
+            try:
+                self.serial = serial.Serial(self.serial_port, self.baudrate)
+                logging.info(f"RFM98W - Opened Serial port {self.serial_port} for modulation.")
+            except Exception as e:
+                logging.critical(f"Could not open serial port! Error: {str(e)}")
+                self.serial = None
+
+        else:
+            # If no serial port info provided, write out to a binary debug file.
+            self.serial = BinaryDebug()
+            logging.info("No serial port provided - using Binary Debug output (binary_debug.bin)")
+
+
+
+    def shutdown(self):
+        """
+        Shutdown the RFM98W, and close the SPI and Serial connections.
+        """
+        super().shutdown()
+        try:
+            # Close the serial connection
+            self.serial.close()
+            logging.info("RFM98W - Closed Serial Port")
+            self.serial = None
+        except:
+            pass
+
+        return
+
+    
+    def transmit_packet(self, packet):
+        """
+        Modulate serial data, using a UART.
+        """
+        if self.serial:
+            self.serial.write(packet)
+
+        super().transmit_packet(packet) # used to reinit the radio occasionally
+
+
+class RFM98W_I2S(RFM98W):
     """
     RFM98W Wrapper for Wenet Transmission, using 2-FSK Direct-Asynchronous Modulation via a I2S.
     """
@@ -247,49 +288,28 @@ class RFM98W_I2S(object):
             tx_power_dbm=17,
             reinit_count=5000
             ):
-        
-        self.spidevice = spidevice
-        self.frequency = frequency
-
-        self.rate = 96000 # only having one rate to simplify things for the moment
-                          # our constraints
-                          # 2 channels  - seems to be stuck with this due to device tree
-                          # 2 bytes (16 bit le) - also limited
-                          # rates 8000,16000,22050,44100,48000 (why no 24000!?!?)
-                          # to keep things simple we can pick a multiple that packs into a byte
+        # fixed baudrate for the moment
+        super().__init__(spidevice,frequency,96000,tx_power_dbm,reinit_count,led=5) # can't use 21 for LED as I2S is there
 
 
         self.channels = 2
         self.audio_width = 2 # bytes
         self.audio_rate = 48000
-        self.bytes_per_bit = ((self.audio_rate * self.channels * self.audio_width) // self.rate)
-        logging.debug(self.bytes_per_bit)
+        self.bytes_per_bit = ((self.audio_rate * self.channels * self.audio_width) // self.baudrate)
 
         if (
-            ((self.audio_rate * self.channels * self.audio_width * 8) / self.rate)%8 !=0
+            ((self.audio_rate * self.channels * self.audio_width * 8) / self.baudrate)%8 !=0
         ):
-            raise ValueError(f"Not aligned audio rate. Must be a whole byte per bit. audio_rate: {self.audio_rate} rate: {self.rate}")
+            raise ValueError(f"Not aligned audio rate. Must be a whole byte per bit. audio_rate: {self.audio_rate} rate: {self.baudrate}")
 
-        self.tx_power_dbm = tx_power_dbm
-        self.reinit_count = reinit_count
+      
 
         self.audio_device = audio_device
-        
-        self.hw = None
-        self.lora = None
-
-        self.tx_packet_count = 0
-
-        self.temperature = -999
-
         self.precompute_bytes()
-
         self.periodsize = None
-        
         self.pcm = None
 
         self.start()
-
         
 
     def start(self):
@@ -297,79 +317,8 @@ class RFM98W_I2S(object):
         Initialise (or re-initialise) both the RFM98W and Serial connections.
         Configure the RFM98W into direct asynchronous FSK mode, with the appropriate power, deviation, and transmit frequency.
         """
-    
-        # Cleanup any open file handlers.
-        if self.hw:
-            self.hw.teardown()
 
-        if HardwareInterface:
-            self.hw = HardwareInterface(self.spidevice, LED=5) # overriding LED pin due to conflict with I2S
-            self.lora = LoRaRFM98W(self.hw, verbose=False)
-            logging.debug(f"RFM98W - SX127x Register Dump: {self.lora.backup_registers}")
-            logging.debug(f"RFM98W - SX127x device version: {hex(self.lora.get_version())}")
-        else:
-            self.hw = None
-            self.lora = None
-
-        if self.hw and not self.comms_ok():
-            logging.critical("RFM98W - No communication with RFM98W IC!")
-            self.shutdown()
-            return
-
-        # Deviation selection. 
-        if self.audio_rate == 9600:
-            deviation = 4800
-        elif self.audio_rate == 4800:
-            deviation = 2400
-        else:
-            # TODO We may want a different deviation for 96000
-            # Default deviation, for 115200 baud
-            deviation = 71797
-
-        # Refer https://cdn.sparkfun.com/assets/learn_tutorials/8/0/4/RFM95_96_97_98W.pdf
-        if self.hw:
-            self.lora.set_register(0x01,0x00) # FSK Sleep Mode
-            self.lora.set_register(0x31,0x00) # Set Continuous Transmit Mode
-
-        # Get the IC temperature
-        if self.hw:
-            self.get_temperature()
-
-        if self.hw:
-            self.lora.set_freq(self.frequency)
-            logging.info(f"RFM98W - Frequency set to: {self.frequency} MHz.")
-
-        # Set Deviation (~70 kHz). Signals ends up looking a bit wider than the RFM22B version.
-        _dev_lsbs = int(deviation / 61.03)
-        _dev_msb = _dev_lsbs >> 8
-        _dev_lsb = _dev_lsbs % 256
-        if self.hw:
-            self.lora.set_register(0x04,_dev_msb)
-            self.lora.set_register(0x05,_dev_lsb)
-    
-        # Set Transmit power
-        if self.hw:
-            tx_power_lookup = {0:0x80, 1:0x80, 2:0x80, 3:0x81, 4:0x82, 5:0x83, 6:0x84, 7:0x85, 8:0x86, 9:0x87, 10:0x88, 11:0x89, 12:0x8A, 13:0x8B, 14:0x8C, 15:0x8D, 16:0x8E, 17:0x8F}
-            if self.tx_power_dbm in tx_power_lookup:
-                self.lora.set_register(0x09, tx_power_lookup[self.tx_power_dbm])
-                logging.info(f"RFM98W - TX Power set to {self.tx_power_dbm} dBm ({hex(tx_power_lookup[self.tx_power_dbm])}).")
-            else:
-                # Default to low power, 1.5mW or so
-                self.lora.set_register(0x09, 0x80)
-                logging.info(f"RFM98W - Unknown TX power, setting to 2 dBm (0x80).")
-
-            # Go into TX mode.
-            self.lora.set_register(0x01,0x02) # .. via FSTX mode (where the transmit frequency actually gets set)
-            self.lora.set_register(0x01,0x03) # Now we're in TX mode...
-
-        # Seems we need to briefly sleep before we can read the register correctly.
-        time.sleep(0.1)
-
-        # Confirm we've gone into transmit mode.
-        if self.hw and self.lora.get_register(0x01) == 0x03:
-            logging.info("RFM98W - Radio initialised!")
-        else:
-            logging.critical("RFM98W - TX Mode not set correctly!")
+        super().start()
         
         # Now initialise the Serial port for modulation
         if self.audio_device and alsaaudio and not self.pcm:
@@ -405,22 +354,6 @@ class RFM98W_I2S(object):
         """
 
         try:
-            # Set radio into FSK sleep mode
-            self.lora.set_register(0x01,0x00)
-            logging.info("RFM98W - Set radio into sleep mode.")
-            self.lora = None
-        except:
-            pass
-
-        try:
-            # Shutdown SPI device
-            self.hw.teardown()
-            logging.info("RFM98W - Disconnected from SPI.")
-            self.hw = None
-        except:
-            pass
-
-        try:
             # Close the audio device
             self.pcm.close()
             logging.info("RFM98W - Closed audio device")
@@ -430,31 +363,12 @@ class RFM98W_I2S(object):
 
         return
 
-    
-    def comms_ok(self):
-        """
-        Test SPI communications with the RFM98W and return true if ok.
-        """
 
-        try:
-            _ver = self.lora.get_version()
-
-            if _ver == 0x00 or _ver == 0xFF or _ver == None:
-                return False
-            else:
-                return True
-        except Exception as e:
-            logging.critical("RFM98W - Could not read device version!")
-            return False
-
-        return False
-    
 
     def transmit_packet(self, packet):
         """
         Modulate audio data, using a I2S.
         """
-
         if self.pcm:
             desired_period_size = (len(packet)*8*self.bytes_per_bit)//self.channels//self.audio_width
             if (
@@ -466,6 +380,7 @@ class RFM98W_I2S(object):
                         logging.critical(f"could not set period size to match packet size: got {self.pcm.setperiodsize(desired_period_size)}")
                 else:
                     self.periodsize = desired_period_size
+                    logging.debug(f"Period size set")
             buffer = b''
             for i_byte in packet:
                 buffer = buffer + self.byte_to_i2s_bytes[i_byte]
@@ -474,26 +389,7 @@ class RFM98W_I2S(object):
                 logging.critical(f"buffer frames length {frame_length} != periodsize {self.periodsize}")
             self.pcm.write(buffer)
 
-        # Increment transmit packet counter
-        self.tx_packet_count += 1
-
-        # If we have a reinitialisation count set, reinitialise the radio.
-        if self.reinit_count:
-            if self.tx_packet_count % self.reinit_count == 0:
-                logging.info(f"RFM98W - Reinitialising Radio at {self.tx_packet_count} packets.")
-                self.start()
-
-    def get_temperature(self):
-        """
-        Get radio module temperature (uncalibrated)
-        """
-        # Make temperature measurement
-        self.temperature = self.lora.get_register(0x3c) * (-1)
-        if self.temperature < -63:
-            self.temperature += 255
-        logging.info(f"RFM98W - Temperature: {self.temperature} C")
-
-        return self.temperature
+        super().transmit_packet(packet) # used to reinit the radio occasionally
 
 class SerialOnly(object):
     """
