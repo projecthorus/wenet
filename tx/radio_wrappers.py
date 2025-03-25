@@ -295,7 +295,11 @@ class RFM98W_I2S(RFM98W):
         self.channels = 2
 
         audio_rates = [8000,16000,22050,44100,48000,96000,176400,192000]
-        logging.debug(f"Searching - {baudrate}")
+        logging.debug(f"Searching for best audio sample rate for {baudrate}")
+
+        # This is a naive approach and there are totally more options avaliable to us than this.
+        # We also aren't strictly limited to just whole bytes for sretching the time, however that's easiest.
+
         for self.audio_rate in audio_rates:
             self.audio_bit_rate = self.audio_rate * self.channels * (self.audio_width*8)
             self.bytes_per_bit = self.audio_bit_rate//baudrate//8
@@ -307,11 +311,10 @@ class RFM98W_I2S(RFM98W):
             if (self.audio_bit_rate/baudrate)%8 != 0:
                 logging.debug(f"NO - {self.audio_rate} RF bitrate = {actual_rf_bitrate}")
             else:
-                logging.debug(f"RF bitrate = {actual_rf_bitrate}")
-                logging.debug(self.audio_rate)
-                logging.debug(self.bytes_per_bit)
+                logging.debug(f"YES - RF bitrate = {actual_rf_bitrate} Audio bitrate = {self.audio_bit_rate} Audio samplerate = {self.audio_rate} Audio Bytes Per Modem Bit = {self.bytes_per_bit}")
                 break
         else:
+            logging.critical("Exhausted all audio sample rates")
             raise ValueError("Baudrate not suitable for soundcard.")
 
 
