@@ -32,5 +32,7 @@ Bench [testing](https://www.rowetel.com/?p=5080) has shown that for a receiver w
 ## How do I Receive it?
 You can receive Wenet transmissions using a Linux computer, a RTLSDR, and a small yagi antenna (sometimes a vertical can work too). You can find a guide on how to get setup to receive imagery here: https://github.com/projecthorus/wenet/wiki/Wenet-RX-Instructions-(Linux-using-Docker)
 
+You can also now receive Wenet in a (Chrome-based) web browser using WebWenet! This is available at https://wenet.sondehub.org/ , with a video guide available at https://www.youtube.com/watch?v=Euo4BGB6wUU
+
 ## How do I Transmit it?
 A guide on setting up a Wenet transmitter using a Raspberry Pi Zero W2 and a HopeRF RFM98W shield is here: https://github.com/projecthorus/wenet/wiki/Wenet-TX-Payload-Instructions
