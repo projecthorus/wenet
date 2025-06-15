@@ -115,12 +115,11 @@ sleep 10
 # e.g:
 # --afwindow 0.25,0.25,0.5,0.5 \
 #
-# Set a fixed lens offset for the PiCam v3, in dioptres. May help with autofocus in cold temperatures.
-# The PiCam v3 can be offset by a maximum of -3 dioptres before hitting a hard-stop
-# Set this to -99.0 to set the PiCam v3 to use the entire lens travel range.
-# The modified focus mapping will be printed out on startup.
-# e.g. to offset by 1 dioptre:
-# --afoffset -1.0 \
+# Set a custom focus mapping range for the PiCam v3, which maps the autofocus range to a lens position.
+# This can be used to constrain the autofocus range, or even completely unlock it to the full lens travel.
+# e.g., for full lens travel, use: 
+# --afcustommap 0.0,0.0,15.0,1024.0 \
+#
 #
 # Use the Focus Figure-of-merit metadata to select the transmitted image, instead of selecting on file size
 # Only useful for lenses with autofocus (PiCam v3)

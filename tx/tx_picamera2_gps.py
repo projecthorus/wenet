@@ -35,7 +35,7 @@ parser.add_argument("--resize", type=float, default=0.5, help="Resize raw image 
 parser.add_argument("--whitebalance", type=str, default='daylight', help="White Balance setting: Auto, Daylight, Cloudy, Incandescent, Tungesten, Fluorescent, Indoor")
 parser.add_argument("--lensposition", type=float, default=-1.0, help="For PiCam v3, set the lens position. Default: -1 = Continuous Autofocus")
 parser.add_argument("--afwindow", type=str, default=None, help="For PiCam v3 Autofocus mode, set the AutoFocus window, x,y,w,h , in fractions of frame size. (Default: None = default)")
-parser.add_argument("--afoffset", type=float, default=0.0, help="For PiCam v3 Autofocus mode, offset the lens by this many dioptres (Default: 0 = No offset)")
+parser.add_argument("--afcustommap", type=str, default=None, help="For PiCam v3 Autofocus mode, set a custom lens focus mapping e.g. 0.0,0.0,15.0,1024.0 (Default: None = default)")
 parser.add_argument("--exposure", type=float, default=0.0, help="Exposure compensation. -8.0 to 8.0. Sets the ExposureValue control. (Default: 0.0)")
 parser.add_argument("--use_focus_fom", action='store_true', default=False, help="Use Focus FoM data instead of file size for image selection.")
 parser.add_argument("--num_images", type=int, default=5, help="Number of images to capture on each cycle. (Default: 5)")
@@ -220,7 +220,8 @@ picam = WenetPiCamera2.WenetPiCamera2(
 		whitebalance=args.whitebalance,
 		lens_position=args.lensposition,
 		af_window=args.afwindow,
-		af_offset=args.afoffset,
+		af_custom_map=args.afcustommap,
+		exposure_value=args.exposure,
 		use_focus_fom=args.use_focus_fom
 		)
 # .. and start it capturing continuously.

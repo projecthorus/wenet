@@ -55,6 +55,7 @@ class WenetPiCamera2(object):
                 lens_position = -1,
                 af_window = None,
                 af_offset = 0,
+                af_custom_map = None,
                 exposure_value = 0.0,
                 use_focus_fom = False,
                 temp_filename_prefix = 'picam_temp',
@@ -88,7 +89,7 @@ class WenetPiCamera2(object):
                         w: Width of rectangle, as fraction of frame width
                         h: Height of rectangle, as fraction of frame height
                         If not provided, the default windowing (approx centre third of width/height) will be used.
-            af_offset:  Offset the lens by a fixed dioptre. May help with autofocus during flights.
+            af_custom_map: A custom focus mapping. e.g. [0.0, 0.0, 15.0, 1024.0] to allow full lens travel.
             exposure_value: Add a exposure compensation. Defaults to 0.
             use_focus_fom: Set to True to use FocusFoM data to select the best image instead of file size.
             temp_filename_prefix: prefix used for temporary files.
@@ -110,6 +111,7 @@ class WenetPiCamera2(object):
         self.lens_position = lens_position
         self.af_window = af_window
         self.af_offset = af_offset
+        self.af_custom_map = af_custom_map
         self.exposure_value = exposure_value
         self.use_focus_fom = use_focus_fom
         self.af_window_rectangle = None # Calculated during init
@@ -149,26 +151,26 @@ class WenetPiCamera2(object):
             pass
 
         # Apply a lens offset if we have been provided one.
-        if self.af_offset != 0:
+        if self.af_custom_map:
             tuning = Picamera2.load_tuning_file("imx708.json")
             map = Picamera2.find_tuning_algo(tuning, "rpi.af")["map"]
             self.debug_message(f"Default Focus Mapping: {map}")
-
-            if self.af_offset == -99:
-                # Custom map for testing the full extents of the lens range.
-                map[0] = 0.0
-                map[1] = 0.0
-                map[2] = 15.0
-                map[3] = 1023.0
-            else:
-                # Otherwise, apply an offset
-                offset_hw = self.af_offset * (map[3]-map[1])/(map[2]-map[0])
-                for i in range(1, len(map), 2):
-                    map[i] += offset_hw
             
-            self.debug_message(f"Modified Focus Mapping: {Picamera2.find_tuning_algo(tuning, 'rpi.af')['map']}")
+            try:
+                _fields = self.af_custom_map.split(",")
 
-            self.cam = Picamera2(0, tuning=tuning)
+                map[0] = float(_fields[0])
+                map[1] = float(_fields[1])
+                map[2] = float(_fields[2])
+                map[3] = float(_fields[3])
+
+                self.debug_message(f"Applied custom Focus Mapping: {Picamera2.find_tuning_algo(tuning, 'rpi.af')['map']}")
+
+                self.cam = Picamera2(0, tuning=tuning)
+
+            except:
+                self.debug_message("Error parsing custom focus map! Using default.")
+                self.cam = Picamera2()
         
         else:
             self.cam = Picamera2()
