@@ -89,3 +89,84 @@ Currently there are demod chain tests for:
 * `wenet_rs232_demod` - Wenet 'traditional' (v1?), 115177 baud, RS232 framing, with complex u8 samples going into fsk_demod
 * `wenet_rs232_demod_c16` - Same as above, but feeding complex signed-16-bit samoples into fsk_demod (should give the same results).
 
+
+
+## Baud Rate Error
+
+If we compile the `tsrc` [resampling utility](https://github.com/projecthorus/radiosonde_auto_rx/blob/master/utils/tsrc.c) from radiosonde_auto_rx and place that in the working directory, we can also investigate how baud rate error effects the modem. We emulate baud rate error by resampling the test samples before feeding them into the demodulator. The --resample argument to test_demod.py allows this.
+
+The short version of the results below is that at 0.3% baud rate error, the demodulator is barely affected. At 0.4 to 0.5% we start to see some significant degradation in performance. At 0.6% error the demodulator falls over completely.
+
+Some detailed results below:
+
+0.3% baud rate error (resampling 1.003)
+```
+wenet_sample_fs921416_float_05.0dB.bin, 0, 11.616
+wenet_sample_fs921416_float_05.5dB.bin, 0, 11.082
+wenet_sample_fs921416_float_06.0dB.bin, 0, 10.958
+wenet_sample_fs921416_float_06.5dB.bin, 0, 11.502
+wenet_sample_fs921416_float_07.0dB.bin, 0, 11.689
+wenet_sample_fs921416_float_07.5dB.bin, 512, 10.945
+wenet_sample_fs921416_float_08.0dB.bin, 44288, 12.450
+wenet_sample_fs921416_float_08.5dB.bin, 319744, 10.885
+wenet_sample_fs921416_float_09.0dB.bin, 498176, 12.270
+wenet_sample_fs921416_float_09.5dB.bin, 517888, 11.823
+wenet_sample_fs921416_float_10.0dB.bin, 524800, 11.473
+wenet_sample_fs921416_float_10.5dB.bin, 527872, 12.089
+wenet_sample_fs921416_float_11.0dB.bin, 527616, 10.763
+wenet_sample_fs921416_float_11.5dB.bin, 529408, 10.672
+wenet_sample_fs921416_float_12.0dB.bin, 528640, 10.982
+wenet_sample_fs921416_float_12.5dB.bin, 529920, 10.786
+wenet_sample_fs921416_float_13.0dB.bin, 530432, 11.128
+wenet_sample_fs921416_float_13.5dB.bin, 530432, 11.618
+wenet_sample_fs921416_float_14.0dB.bin, 530688, 13.131
+wenet_sample_fs921416_float_14.5dB.bin, 530176, 11.227
+```
+
+0.4% baud rate error (resampling 1.004)
+```
+wenet_sample_fs921416_float_05.0dB.bin, 0, 14.871
+wenet_sample_fs921416_float_05.5dB.bin, 0, 12.558
+wenet_sample_fs921416_float_06.0dB.bin, 0, 11.828
+wenet_sample_fs921416_float_06.5dB.bin, 0, 11.590
+wenet_sample_fs921416_float_07.0dB.bin, 0, 11.789
+wenet_sample_fs921416_float_07.5dB.bin, 768, 39.762
+wenet_sample_fs921416_float_08.0dB.bin, 33024, 11.199
+wenet_sample_fs921416_float_08.5dB.bin, 233472, 11.640
+wenet_sample_fs921416_float_09.0dB.bin, 383744, 11.952
+wenet_sample_fs921416_float_09.5dB.bin, 423424, 11.615
+wenet_sample_fs921416_float_10.0dB.bin, 443392, 13.541
+wenet_sample_fs921416_float_10.5dB.bin, 464640, 11.773
+wenet_sample_fs921416_float_11.0dB.bin, 473600, 14.853
+wenet_sample_fs921416_float_11.5dB.bin, 489728, 12.342
+wenet_sample_fs921416_float_12.0dB.bin, 492800, 11.302
+wenet_sample_fs921416_float_12.5dB.bin, 509184, 14.049
+wenet_sample_fs921416_float_13.0dB.bin, 514816, 10.986
+wenet_sample_fs921416_float_13.5dB.bin, 516864, 11.716
+wenet_sample_fs921416_float_14.0dB.bin, 521216, 11.401
+wenet_sample_fs921416_float_14.5dB.bin, 526592, 11.116
+```
+
+0.5% baud rate error (resampling 1.005)
+```
+wenet_sample_fs921416_float_05.0dB.bin, 0, 11.811
+wenet_sample_fs921416_float_05.5dB.bin, 0, 12.631
+wenet_sample_fs921416_float_06.0dB.bin, 0, 19.314
+wenet_sample_fs921416_float_06.5dB.bin, 0, 23.884
+wenet_sample_fs921416_float_07.0dB.bin, 0, 17.919
+wenet_sample_fs921416_float_07.5dB.bin, 256, 24.970
+wenet_sample_fs921416_float_08.0dB.bin, 5120, 13.781
+wenet_sample_fs921416_float_08.5dB.bin, 41472, 12.175
+wenet_sample_fs921416_float_09.0dB.bin, 70400, 23.371
+wenet_sample_fs921416_float_09.5dB.bin, 93952, 14.122
+wenet_sample_fs921416_float_10.0dB.bin, 105728, 12.069
+wenet_sample_fs921416_float_10.5dB.bin, 116992, 18.710
+wenet_sample_fs921416_float_11.0dB.bin, 141056, 13.651
+wenet_sample_fs921416_float_11.5dB.bin, 143616, 20.215
+wenet_sample_fs921416_float_12.0dB.bin, 169216, 13.285
+wenet_sample_fs921416_float_12.5dB.bin, 178944, 13.912
+wenet_sample_fs921416_float_13.0dB.bin, 198656, 15.465
+wenet_sample_fs921416_float_13.5dB.bin, 219392, 14.138
+wenet_sample_fs921416_float_14.0dB.bin, 228864, 22.024
+wenet_sample_fs921416_float_14.5dB.bin, 255744, 18.072
+```

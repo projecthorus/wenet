@@ -37,7 +37,7 @@ processing_type = {
     },
 }
 
-def run_analysis(mode, file_mask=None, shift=0.0, verbose=False, log_output = None, dry_run = False, quick=False, show=False):
+def run_analysis(mode, file_mask=None, shift=0.0, resample=1.0, verbose=False, log_output = None, dry_run = False, quick=False, show=False):
 
 
     _mode = processing_type[mode]
@@ -64,6 +64,8 @@ def run_analysis(mode, file_mask=None, shift=0.0, verbose=False, log_output = No
     # Calculate the frequency offset to apply, if defined.
     _shiftcmd = "| csdr shift_addition_cc %.5f 2>/dev/null" % (shift/96000.0)
 
+    _resamplecmd = f"| csdr convert_f_s16 | ./tsrc - -  {resample:.5f} -c | csdr convert_s16_f " 
+
     if log_output is not None:
         _log = open(log_output,'w')
 
@@ -76,6 +78,9 @@ def run_analysis(mode, file_mask=None, shift=0.0, verbose=False, log_output = No
         # Add in an optional frequency error if supplied.
         if shift != 0.0:
             _cmd += _shiftcmd
+
+        if resample != 1.0:
+            _cmd += _resamplecmd
 
         # Add on the rest of the demodulation and decoding commands.
         _cmd += _mode['demod'] + _mode['decode'] 
@@ -126,6 +131,7 @@ if __name__ == "__main__":
     parser.add_argument("-v", "--verbose", action='store_true', default=False, help="Show additional debug info.")
     parser.add_argument("-d", "--dry-run", action='store_true', default=False, help="Show additional debug info.")
     parser.add_argument("--shift", type=float, default=0.0, help="Shift the signal-under test by x Hz. Default is 0.")
+    parser.add_argument("--resample", type=float, default=1.0, help="Resample. Default is 1 (no resampling).")
     parser.add_argument("--batch", action='store_true', default=False, help="Run all tests, write results to results directory.")
     parser.add_argument("--quick", action='store_true', default=False, help="Only process the last sample file in the list (usually the strongest). Useful for checking the demodulators are still working.")
     parser.add_argument("--show", action='store_true', default=False, help="Show the first few lines of output, instead of running the post-processing step.")
@@ -145,4 +151,4 @@ if __name__ == "__main__":
             _log_name = "./results/" + _mode + ".txt"
             run_analysis(_mode, file_mask=None, shift=args.shift, verbose=args.verbose, log_output=_log_name, dry_run=args.dry_run, quick=args.quick, show=args.show)
     else:
-        run_analysis(args.mode, args.files, shift=args.shift, verbose=args.verbose, dry_run=args.dry_run, quick=args.quick, show=args.show)
+        run_analysis(args.mode, args.files, shift=args.shift, resample=args.resample, verbose=args.verbose, dry_run=args.dry_run, quick=args.quick, show=args.show)
