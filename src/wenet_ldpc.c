@@ -48,6 +48,7 @@
 #include <stdint.h>
 
 #include "mpdecode_core.h"
+#include "wenet_scramble.h"
 
 /* Machine generated consts, H_rows, H_cols, test input/output data to
    change LDPC code regenerate this file. */
@@ -74,7 +75,10 @@
 /* UW pattern we look for, including start/stop bits */
 
 uint8_t uw[] = {
-    1,0,1,0,1,0,1,1,1,1,0,0,1,1,0,1,1,1,1,0,1,1,1,1,0,0,0,0,0,0,0,1
+    1,0,1,0,1,0,1,1,
+    1,1,0,0,1,1,0,1,
+    1,1,1,0,1,1,1,1,
+    0,0,0,0,0,0,0,1,
 };
 
 
@@ -200,8 +204,8 @@ int main(int argc, char *argv[]) {
         }
 
         if (state == COLLECT_PACKET) {
-            symbol_buf[ind++] = symbol;
- 
+            symbol_buf[ind] = symbol * scramble_code[ind%(sizeof(scramble_code)/sizeof(scramble_code[0]))];
+            ind++;
             if (ind == SYMBOLS_PER_PACKET) {
 
                /* now LDPC decode */

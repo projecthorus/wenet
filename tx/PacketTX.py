@@ -132,9 +132,9 @@ class PacketTX(object):
 
         if fec:
             parity = ldpc_encode(packet + crc)
-            return self.preamble + self.unique_word + packet + crc + parity
+            return self.preamble + self.unique_word + self.radio.scramble(packet + crc + parity)
         else:
-            return self.preamble + self.unique_word + packet + crc 
+            return self.preamble + self.unique_word + self.radio.scramble(packet + crc )
 
 
     def set_idle_message(self, message):

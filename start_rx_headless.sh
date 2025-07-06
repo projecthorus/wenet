@@ -18,7 +18,7 @@ MYCALL=CHANGEME
 # Wenet Transmission Centre Frequency:
 
 # Default Wenet Frequency, as used on most Project Horus flights.
-RXFREQ=441200000
+RXFREQ=443500000
 # Secondary downlink frequency, used on dual-launch flights
 #RXFREQ=443500000
 
@@ -34,7 +34,7 @@ BIAS=0
 # building the rtl-sdr utils from this repo: https://github.com/rtlsdrblog/rtl-sdr
 
 # drs232_ldpc (traditional) or wenet_ldpc (wenet v2)
-FRAMING_MODE=drs232_ldpc
+FRAMING_MODE=wenet_ldpc
 
 # Change the following path as appropriate.
 # If running this from a .desktop file, you may need to set an absolute path here
