@@ -389,7 +389,7 @@ class WenetPiCamera2(object):
 
         return True 
 
-    def ssdvify(self, filename="output.jpg", image_id=0, quality=6):
+    def ssdvify(self, filename="output.jpg", image_id=0, quality=6, tx=None):
         """ Convert a supplied JPEG image to SSDV.
         Returns the filename of the converted SSDV image.
 
@@ -417,6 +417,8 @@ class WenetPiCamera2(object):
         file_basename = filename[:-4]
 
         # Construct SSDV command-line.
+        if tx:
+            self.callsign = tx.callsign.decode()
         ssdv_command = "ssdv -e -n -q %d -c %s -i %d picam_temp.jpg picam_temp.ssdv" % (quality, self.callsign, image_id)
         print(ssdv_command)
         # Update debug message.
@@ -503,7 +505,13 @@ class WenetPiCamera2(object):
                     self.debug_message("Image Post-Processing Failed: %s" % error_str)
 
             # SSDV'ify the image.
-            ssdv_filename = self.ssdvify(capture_filename, image_id=image_id)
+            # Wait until the transmit queue is empty before pushing in packets.
+            self.debug_message("Waiting for SSDV TX queue to empty.")
+            while tx.image_queue_empty() == False:
+                sleep(1) # Sleep for a short amount of time to allow switching of radio
+                if self.auto_capture_running == False:
+                    return
+            ssdv_filename = self.ssdvify(capture_filename, image_id=image_id, tx=tx)
 
             # Check the SSDV Conversion has completed properly. If not, continue
             if ssdv_filename == "FAIL":
@@ -514,18 +522,11 @@ class WenetPiCamera2(object):
             # Otherwise, read in the file and push into the TX buffer.
             file_size = os.path.getsize(ssdv_filename)
 
-            # Wait until the transmit queue is empty before pushing in packets.
-            self.debug_message("Waiting for SSDV TX queue to empty.")
-            while tx.image_queue_empty() == False:
-                sleep(0.05) # Sleep for a short amount of time.
-                if self.auto_capture_running == False:
-                    return
-
             # Inform ground station we are about to send an image.
             self.debug_message("Transmitting %d PiCam SSDV Packets." % (file_size//256))
 
             # Push SSDV file into transmit queue.
-            tx.queue_image_file(ssdv_filename)
+            tx.queue_image_file(ssdv_filename, self.callsign.encode('ascii'))
 
             # Increment image ID.
             image_id = (image_id + 1) % 256

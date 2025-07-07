@@ -85,11 +85,25 @@ class PacketTX(object):
         fec=True, 
         udp_listener = None,
         log_file = None):
+
+        self.min_radio_rotation_time_seconds = 60 # only when queues empty
+        self.last_rotate = time.monotonic()
         
-        self.radio = radio
+        if type(radio) == list: # handle multiple radios
+            self.radios = radio
+            self.radio = radio.pop(0)
+            self.radios.append(self.radio) # rotate since we've used the first one
+        else:
+            self.radios = None
+            self.radio = radio
 
         self.payload_length = payload_length
-        self.callsign = callsign.encode('ascii')
+        if type(callsign) == list:
+            self.callsigns = [x.encode('ascii') for x in callsign]
+            self.callsign = self.callsigns.pop(0)
+            self.callsigns.append(self.callsign)
+        else:
+            self.callsign = callsign.encode('ascii')
         self.fec = fec
 
         self.crc16 = crcmod.predefined.mkCrcFun('crc-ccitt-false')
@@ -157,10 +171,23 @@ class PacketTX(object):
                 packet = self.telemetry_queue.get_nowait()
                 self.radio.transmit_packet(packet)
             elif self.ssdv_queue.qsize()>0:
-                packet = self.ssdv_queue.get_nowait()
-                self.radio.transmit_packet(packet)
+                (packet, callsign) = self.ssdv_queue.get_nowait()
+                if callsign == self.callsign:
+                    self.radio.transmit_packet(packet)
+                else:
+                    logging.info("packet not intended for this callsign - dropping")
             else:
                 self.radio.transmit_packet(self.idle_message)
+                if self.radios:
+                    if time.monotonic() > self.min_radio_rotation_time_seconds + self.last_rotate:
+                        logging.info("Rotating radio")
+                        logging.info(self.radios)
+                        self.last_rotate = time.monotonic() 
+                        self.callsign = self.callsigns.pop(0)
+                        self.callsigns.append(self.callsign)
+                        self.radio = self.radios.pop(0)
+                        self.radios.append(self.radio)
+                        self.radio.start()
                 # time.sleep(0.1) 
                 # commented this out as we should probably always be sending something
                 # this can cause gaps in i2s, which while won't hurt the performance can be annoying
@@ -192,11 +219,11 @@ class PacketTX(object):
 
     # New packet queueing and queue querying functions (say that 3 times fast)
 
-    def queue_image_packet(self,packet):
-        self.ssdv_queue.put(self.frame_packet(packet, self.fec))
+    def queue_image_packet(self,packet,callsign):
+        self.ssdv_queue.put([self.frame_packet(packet, self.fec),callsign])
 
 
-    def queue_image_file(self, filename):
+    def queue_image_file(self, filename, callsign):
         """ Read in <filename> and transmit it, 256 bytes at a time.
             Intended for transmitting SSDV images.
         """
@@ -205,7 +232,7 @@ class PacketTX(object):
             f = open(filename,'rb')
             for x in range(file_size//256):
                 data = f.read(256)
-                self.queue_image_packet(data)
+                self.queue_image_packet(data,callsign)
             f.close()
             return True
         except:

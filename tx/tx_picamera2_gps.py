@@ -20,15 +20,15 @@ from radio_wrappers import *
 
 
 parser = argparse.ArgumentParser()
-parser.add_argument("callsign", default="N0CALL", help="Payload Callsign")
+parser.add_argument("callsign", nargs="+", action="extend", help="Payload Callsign")
 parser.add_argument("--gps", default="none", help="uBlox GPS Serial port. Defaults to /dev/ttyACM0")
 parser.add_argument("--gpsbaud", default=115200, type=int, help="uBlox GPS Baud rate. (Default: 115200)")
 parser.add_argument("--logo", default="none", help="Optional logo to overlay on image.")
 parser.add_argument("--rfm98w", default=None, type=int, help="If set, configure a RFM98W on this SPI device number.")
 parser.add_argument("--rfm98w-i2s", default=None, type=int, help="If set, configure a RFM98W on this SPI device number. Using I2S")
 parser.add_argument("--audio-device", default="hw:CARD=i2smaster,DEV=0", type=str, help="Alsa device string. Sets the audio device for rfm98w-i2s mode. (Default: hw:CARD=i2smaster,DEV=0)")
-parser.add_argument("--frequency", default=443.500, type=float, help="Transmit Frequency (MHz). (Default: 443.500 MHz)")
-parser.add_argument("--baudrate", default=None, type=int, help="Wenet TX baud rate. (Default: 115200 for uart and 96000 for I2S). Known working I2S baudrates: 8000, 24000, 48000, 96000.")
+parser.add_argument("--frequency", nargs="+", type=float, help="Transmit Frequency (MHz). (Default: 443.500 MHz)",action="extend")
+parser.add_argument("--baudrate", nargs="+", type=int,action="extend", help="Wenet TX baud rate. (Default: 115200 for uart and 96000 for I2S). Known working I2S baudrates: 8000, 24000, 48000, 96000.")
 parser.add_argument("--serial_port", default="/dev/ttyAMA0", type=str, help="Serial Port for modulation.")
 parser.add_argument("--tx_power", default=17, type=int, help="Transmit power in dBm (Default: 17 dBm, 50mW. Allowed values: 2-17)")
 parser.add_argument("--vflip", action='store_true', default=False, help="Flip captured image vertically.")
@@ -45,12 +45,6 @@ parser.add_argument("--image_delay", type=float, default=1.0, help="Delay time b
 parser.add_argument("-v", "--verbose", action='store_true', default=False, help="Show additional debug info.")
 args = parser.parse_args()
 
-if args.baudrate == None:
-	if args.rfm98w:
-		args.baudrate = 115200
-	elif args.rfm98w_i2s:
-		args.baudrate = 96000
-
 if args.verbose:
 	logging_level = logging.DEBUG
 else:
@@ -62,36 +56,35 @@ logging.basicConfig(format="%(asctime)s %(levelname)s: %(message)s", level=loggi
 
 callsign = args.callsign
 # Truncate callsign if it's too long.
-if len(callsign) > 6:
-	callsign = callsign[:6]
+callsign = [x[:6] for x in args.callsign]
 
 print("Using Callsign: %s" % callsign)
 
+radios = []
 if args.rfm98w is not None:
-	radio = RFM98W_Serial(
+	radios.append(RFM98W_Serial(
 		spidevice = args.rfm98w,
-		frequency = args.frequency,
-		baudrate = args.baudrate,
+		frequency = args.frequency.pop(0),
+		baudrate = args.baudrate.pop(0),
 		serial_port = args.serial_port,
 		tx_power_dbm = args.tx_power
-	)
-elif args.rfm98w_i2s is not None:
-	radio = RFM98W_I2S(
+	))
+if args.rfm98w_i2s is not None:
+	radios.append(RFM98W_I2S(
 		spidevice = args.rfm98w_i2s,
-		baudrate = args.baudrate,
-		frequency = args.frequency,
+		baudrate = args.baudrate.pop(0),
+		frequency = args.frequency.pop(0),
 		audio_device= args.audio_device,
 		tx_power_dbm = args.tx_power
-	)
+	))
 # Other radio options would go here.
-else:
+if not radios:
 	logging.critical("No radio type specified! Exiting")
 	sys.exit(1)
 
-
 # Start up Wenet TX.
 picam = None
-tx = PacketTX.PacketTX(radio=radio, callsign=callsign, log_file="debug.log", udp_listener=55674)
+tx = PacketTX.PacketTX(radio=radios, callsign=callsign, log_file="debug.log", udp_listener=55674)
 tx.start_tx()
 
 # Sleep for a second to let the transmitter fire up.
