@@ -161,7 +161,10 @@ class PacketTX(object):
                 self.radio.transmit_packet(packet)
             else:
                 self.radio.transmit_packet(self.idle_message)
-                time.sleep(0.1)
+                # time.sleep(0.1) 
+                # commented this out as we should probably always be sending something
+                # this can cause gaps in i2s, which while won't hurt the performance can be annoying
+                # as the stream starts and stops
         
         print("Closing Thread")
         self.radio.shutdown()

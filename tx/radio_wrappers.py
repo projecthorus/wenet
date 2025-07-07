@@ -96,9 +96,12 @@ class RFM98W(object):
             deviation = 4800
         elif self.baudrate == 4800:
             deviation = 2400
-        else:
+        elif self.baudrate in [115177,115200]:
             # Default deviation, for 115200 baud
+            # The origin of this number is unknown
             deviation = 71797
+        else:
+            deviation = self.baudrate//2
 
         # Refer https://cdn.sparkfun.com/assets/learn_tutorials/8/0/4/RFM95_96_97_98W.pdf
         self.lora.set_register(0x01,0x00) # FSK Sleep Mode
@@ -320,12 +323,8 @@ class RFM98W_I2S(RFM98W):
             raise ValueError("Baudrate not suitable for soundcard.")
 
 
-        # fixed baudrate for the moment
         super().__init__(spidevice,frequency,baudrate,tx_power_dbm,reinit_count,led=5) # can't use 21 for LED as I2S is there
-        
-        
 
-       
 
         if (
             ((self.audio_rate * self.channels * self.audio_width * 8) / self.baudrate)%8 !=0

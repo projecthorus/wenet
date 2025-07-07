@@ -18,7 +18,7 @@ MYCALL=CHANGEME
 # Wenet Transmission Centre Frequency:
 
 # Default Wenet Frequency, as used on most Project Horus flights.
-RXFREQ=443500000
+RXFREQ=441200000
 # Secondary downlink frequency, used on dual-launch flights
 #RXFREQ=443500000
 
@@ -34,7 +34,7 @@ BIAS=0
 # building the rtl-sdr utils from this repo: https://github.com/rtlsdrblog/rtl-sdr
 
 # drs232_ldpc (traditional) or wenet_ldpc (wenet v2)
-FRAMING_MODE=wenet_ldpc
+FRAMING_MODE=drs232_ldpc
 
 # Change the following path as appropriate.
 # If running this from a .desktop file, you may need to set an absolute path here
@@ -69,11 +69,11 @@ RX_FLOW=IQ
 #
 # Modem Settings - Don't adjust these unless you really need to!
 #
-# TODO change back to traditional settings
-BAUD_RATE=96000 # Baud rate, in symbols/second.
-OVERSAMPLING=10	 # FSK Demod Oversampling rate. Not used in GQRX mode.
+BAUD_RATE=115177 # Baud rate, in symbols/second.
+OVERSAMPLING=8	 # FSK Demod Oversampling rate. Not used in GQRX mode.
 # Known-Working Modem Settings:
 # 115177 baud (Pi Zero W @ '115200' baud), 8x oversampling.
+# 96000 baud (i2S wenet v2), 10x oversampling
 # 9600 baud, 100x oversampling.
 # 4800 baud, 200x oversampling.
 #BAUD_RATE=4800
