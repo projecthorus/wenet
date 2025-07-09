@@ -228,7 +228,7 @@ class RFM98W_Serial(RFM98W):
         
         self.serial_port = serial_port
 
-        super().__init__(spidevice,frequency,baudrate,tx_power_dbm,reinit_count)
+        super().__init__(spidevice,frequency,baudrate,tx_power_dbm,reinit_count,led=5)
         self.start()
     
 

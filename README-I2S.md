@@ -4,6 +4,12 @@ Connect [Broadcom pin GPIO 21 / pin 40 on the Pi header](https://pinout.xyz/pino
 
 ### Software
 
+#### 0. Install pyalsaaudio
+
+```
+sudo apt-get install python3-alsaaudio
+```
+
 #### 1. Compile the device tree overlay
 ```sh
 cd tx/i2smaster/
