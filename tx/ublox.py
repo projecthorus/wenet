@@ -767,6 +767,7 @@ class UBlox:
 
     def write(self, buf):
         '''write some bytes'''
+        print("write")
         if not self.read_only:
             if self.use_sendrecv:
                 return self.dev.send(buf)
@@ -1037,14 +1038,23 @@ class UBloxGPS(object):
         """ Configure the uBlox GPS """
         self.gps.set_binary()
         self.gps.configure_poll_port()
+        time.sleep(1)
         self.gps.configure_poll(CLASS_CFG, MSG_CFG_USB)
+        time.sleep(1)
         self.gps.configure_port(port=PORT_SERIAL1, inMask=1, outMask=0)
+        time.sleep(1)
         self.gps.configure_port(port=PORT_USB, inMask=1, outMask=1)
+        time.sleep(1)
         self.gps.configure_port(port=PORT_SERIAL2, inMask=1, outMask=0)
+        time.sleep(1)
         self.gps.configure_poll_port()
+        time.sleep(1)
         self.gps.configure_poll_port(PORT_SERIAL1)
+        time.sleep(1)
         self.gps.configure_poll_port(PORT_SERIAL2)
+        time.sleep(1)
         self.gps.configure_poll_port(PORT_USB)
+        time.sleep(1)
         self.gps.configure_solution_rate(rate_ms=self.update_rate_ms)
 
         self.gps.set_preferred_dynamic_model(self.dynamic_model)

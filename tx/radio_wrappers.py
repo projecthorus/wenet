@@ -227,7 +227,7 @@ class RFM98W_Serial(RFM98W):
             ):
         
         self.serial_port = serial_port
-
+        self.serial = None
         super().__init__(spidevice,frequency,baudrate,tx_power_dbm,reinit_count,led=5)
         self.start()
     
@@ -241,9 +241,10 @@ class RFM98W_Serial(RFM98W):
         # Now initialise the Serial port for modulation
         if self.serial_port:
             try:
-                self.serial = serial.Serial(self.serial_port, self.baudrate)
-                self.serial.break_condition=True # Set UART to low when we aren't using it. Used for dual tx mode
-                logging.info(f"RFM98W - Opened Serial port {self.serial_port} for modulation.")
+                if not self.serial:
+                    self.serial = serial.Serial(self.serial_port, self.baudrate)
+                    self.serial.break_condition=True # Set UART to low when we aren't using it. Used for dual tx mode
+                    logging.info(f"RFM98W - Opened Serial port {self.serial_port} for modulation.")
             except Exception as e:
                 logging.critical(f"Could not open serial port! Error: {str(e)}")
                 self.serial = None

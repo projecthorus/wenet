@@ -166,7 +166,8 @@ class PacketTX(object):
             
             Checks telemetry and image queues in order, and transmits a packet.
         """
-        while self.transmit_active:
+        try:
+          while self.transmit_active:
             if self.telemetry_queue.qsize()>0:
                 packet = self.telemetry_queue.get_nowait()
                 self.radio.transmit_packet(packet)
@@ -192,6 +193,8 @@ class PacketTX(object):
                 # commented this out as we should probably always be sending something
                 # this can cause gaps in i2s, which while won't hurt the performance can be annoying
                 # as the stream starts and stops
+        except:
+            os._exit(1)
         
         print("Closing Thread")
         self.radio.shutdown()
@@ -205,7 +208,7 @@ class PacketTX(object):
 
     # Deprecated function
     def tx_packet(self,packet,blocking = False):
-        self.ssdv_queue.put(self.frame_packet(packet, self.fec))
+        self.ssdv_queue.put([self.frame_packet(packet, self.fec),'N0CALL'.encode('ascii')])
 
         if blocking:
             while not self.ssdv_queue.empty():

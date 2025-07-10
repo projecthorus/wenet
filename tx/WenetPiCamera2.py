@@ -492,7 +492,6 @@ class WenetPiCamera2(object):
                 except:
                     self.debug_message("Error initializing camera!")
                     sleep(1)
-
                 continue
 
             # Otherwise, proceed to post-processing step.
