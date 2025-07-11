@@ -28,8 +28,18 @@ BIAS=0
 # Note that this will need the rtl_biast utility available, which means
 # building the rtl-sdr utils from this repo: https://github.com/rtlsdrblog/rtl-sdr
 
-# drs232_ldpc (traditional) or wenet_ldpc (wenet v2)
+# Wenet Mode Settings
+#
+# Uncomment one of the following!
+# Wenet 'Classic' (v1, RS232 framing)
+BAUD_RATE=115177
+OVERSAMPLING=8
 FRAMING_MODE=drs232_ldpc
+
+# Wenet v2 (96000 baud, no RS232 framing)
+#BAUD_RATE=96000
+#OVERSAMPLING=10
+#FRAMING_MODE=wenet_ldpc
 
 # Change the following path as appropriate.
 # If running this from a .desktop file, you may need to set an absolute path here
@@ -59,18 +69,6 @@ RX_FLOW=IQ
 
 
 
-
-#
-# Modem Settings - Don't adjust these unless you really need to!
-#
-BAUD_RATE=115177 # Baud rate, in symbols/second.
-OVERSAMPLING=8	 # FSK Demod Oversampling rate. Not used in GQRX mode.
-# Known-Working Modem Settings:
-# 115177 baud (Pi Zero W @ '115200' baud), 8x oversampling.
-# 9600 baud, 100x oversampling.
-# 4800 baud, 200x oversampling.
-#BAUD_RATE=4800
-#OVERSAMPLING=200
 
 
 #

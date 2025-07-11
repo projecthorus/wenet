@@ -170,3 +170,35 @@ wenet_sample_fs921416_float_13.5dB.bin, 219392, 14.138
 wenet_sample_fs921416_float_14.0dB.bin, 228864, 22.024
 wenet_sample_fs921416_float_14.5dB.bin, 255744, 18.072
 ```
+
+
+## Weak Signal Tests
+
+Aim here is to try and verify the 'minimum detectable signal' level of the different Wenet modes.
+
+Receiver: RTLSDR + UpuTronics 440 MHz filtered preamp. Noise figure of this setup should be somewhere around 1-2 dB. 
+
+Transmitter is a wenet payload in a metal box, situated across my house. Approx 90 dB attenuation at the output of the box, then ~20m LMR400 coax, then a step attenuator (0-90 dB in 1dB steps), then the receiver.
+
+First step is to work out the minimum signal level at the input to the preamp, where wenet signals are barely decodable. 
+
+Approach here is:
+- Set a gain setting on the RTLSDR.
+- Add attenuation until decoding starts to break (e.g. we start to see breakup in images)
+- Add gain on the RTLSDR (this will decrease the system noise figure)
+
+Ended up at maximum RTLSDR gain, which will be best noise figure (approx 6 dB NF for the RTLSDR itself, < 1 dB for the preamp).
+
+Once decode threshold is reached, stop transmitter, but leave it in carrier mode, and measure carrier level on spectrum analyzer.
+
+### UART Mode
+
+Resultant MDS level for UART mode (115200 baud) with 50 dB manual gain: -114.8 dBm
+
+Enabled AGC on RTLSDR... decoding again. MDS now -116.5 dBm
+Suggests that enabling the AGC switches in some additional gain, which improves the system noise figure a little. Will continue testing with AGC enabled.
+
+### I2S Mode
+Note this uses a deviation of baudrate//2
+MDS with AGC Enabled: Approx -116.6 dBm dBm
+Expected approx 0.8 dB improvement, but difficult to quantify these measurements to that precision.

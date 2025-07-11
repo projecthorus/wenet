@@ -33,20 +33,22 @@ GAIN=0
 # Enable this is you are intending on powering a preamplifer via coax from your RTLSDR
 BIAS=0
 
-# Upload Enable (1) or Disable (0) to control uploading to ssdv.habhub.org and SondeHub Amateur
-UPLOAD_ENABLE=1
-
-
-# Baud Rate & FSK Demod Oversampling Settings
+# Wenet Mode Settings
 #
-# Default: 115177 baud 8x oversampling (Default using a RPi Zero W's UART)
-# wenet v2: I2S 96000 baud, 10x oversampling
-# Other parameters which *may* work, but are un-tested:
-# 9600 baud, 100x oversampling
-# 4800 baud, 200x oversampling
-#
+# Uncomment one of the following!
+# Wenet 'Classic' (v1, RS232 framing)
 BAUD_RATE=115177
 OVERSAMPLING=8
+FRAMING_MODE=drs232_ldpc
+
+# Wenet v2 (96000 baud, no RS232 framing)
+#BAUD_RATE=96000
+#OVERSAMPLING=10
+#FRAMING_MODE=wenet_ldpc
+
+
+# Upload Enable (1) or Disable (0) to control uploading to ssdv.habhub.org and SondeHub Amateur
+UPLOAD_ENABLE=1
 
 
 # UDP Payload Summary
@@ -64,9 +66,6 @@ IMAGE_PORT=7890
 # If you are intenting on running more than one Wenet instance on the same computer
 # (e.g. multiple docker containers), use a different port for each instance.
 WEB_PORT=5003
-
-# drs232_ldpc (traditional) or wenet_ldpc (wenet v2)
-FRAMING_MODE=drs232_ldpc
 
 # Stop and remove any existing wenet instances
 echo "Stopping/Removing any existing Wenet instances..."
