@@ -37,7 +37,8 @@ NORMALISE = True
 # sample_rate = input file sample rate.
 
 SAMPLES = [
-    ['wenet_sample_fs921416_float.bin', 115200, -100, 921416], # No threshold set, as signal is continuous.
+   # ['wenet_sample_fs921416_float.bin', 115200, -100, 921416], # No threshold set, as signal is continuous.
+    ['wenet_sample_i2s_fs960000_float.bin', 96000, -100, 960000],
 ]
 
 

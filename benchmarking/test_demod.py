@@ -35,6 +35,12 @@ processing_type = {
         "post_process" : " |  wc -c", #
         'files' : "./generated/wenet_sample_fs921416*.bin"
     },
+    'wenet_i2s_demod': {
+        'demod': '| csdr convert_f_u8 | ../rx/fsk_demod --cu8 -s --stats=100 2 960000 96000 - - 2> stats.txt | ',
+        'decode': '../rx/wenet_ldpc - -  2> /dev/null ', # 
+        "post_process" : " |  wc -c", #
+        'files' : "./generated/wenet_sample_i2s_fs960000*.bin"
+    },
 }
 
 def run_analysis(mode, file_mask=None, shift=0.0, resample=1.0, verbose=False, log_output = None, dry_run = False, quick=False, show=False):

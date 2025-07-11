@@ -40,6 +40,7 @@ UPLOAD_ENABLE=1
 # Baud Rate & FSK Demod Oversampling Settings
 #
 # Default: 115177 baud 8x oversampling (Default using a RPi Zero W's UART)
+# wenet v2: I2S 96000 baud, 10x oversampling
 # Other parameters which *may* work, but are un-tested:
 # 9600 baud, 100x oversampling
 # 4800 baud, 200x oversampling
@@ -64,6 +65,9 @@ IMAGE_PORT=7890
 # (e.g. multiple docker containers), use a different port for each instance.
 WEB_PORT=5003
 
+# drs232_ldpc (traditional) or wenet_ldpc (wenet v2)
+FRAMING_MODE=drs232_ldpc
+
 # Stop and remove any existing wenet instances
 echo "Stopping/Removing any existing Wenet instances..."
 docker stop wenet || true && docker rm wenet || true
@@ -84,6 +88,7 @@ if [ "$SDR_TYPE" = "RTLSDR" ] ; then
 		-e IMAGE_PORT=$IMAGE_PORT \
 		-e WEB_PORT=$WEB_PORT \
 		-e SDR_TYPE=$SDR_TYPE \
+		-e FRAMING_MODE=$FRAMING_MODE \
 		-e UPLOAD_ENABLE=$UPLOAD_ENABLE \
 		-v ~/wenet/rx_images/:/opt/wenet/rx_images/ \
 		--device /dev/bus/usb \
@@ -104,6 +109,7 @@ elif [ "$SDR_TYPE" = "KA9Q" ] ; then
 		-e IMAGE_PORT=$IMAGE_PORT \
 		-e WEB_PORT=$WEB_PORT \
 		-e SDR_TYPE=$SDR_TYPE \
+		-e FRAMING_MODE=$FRAMING_MODE \
 		-e UPLOAD_ENABLE=$UPLOAD_ENABLE \
 		-v ~/wenet/rx_images/:/opt/wenet/rx_images/ \
 		-v /var/run/dbus:/var/run/dbus \

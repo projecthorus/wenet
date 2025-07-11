@@ -23,29 +23,37 @@ import logging
 import serial
 import time
 import numpy as np
-from SX127x.LoRa import *
-from SX127x.hardware_piloragateway import HardwareInterface
 
+try:
+    import alsaaudio
+except:
+    logging.warning("No alsaaudio - i2s support disabled")
 
-class RFM98W_Serial(object):
+# Allow for testing without a radio
+try:
+    from SX127x.LoRa import *
+    from SX127x.hardware_piloragateway import HardwareInterface
+except:
+    HardwareInterface = None
+    logging.error("Could not load SX127x. modules")
+
+class RFM98W(object):
     """
-    RFM98W Wrapper for Wenet Transmission, using 2-FSK Direct-Asynchronous Modulation via a UART.
-    """
-
+    RFM98W Wrapper for Wenet Transmission, using 2-FSK Direct-Asynchronous Modulation
+    """    
     def __init__(
             self,
             spidevice=0,
             frequency=443.500,
             baudrate=115200,
-            serial_port=None,
             tx_power_dbm=17,
-            reinit_count=5000
+            reinit_count=5000,
+            led=None
             ):
         
         self.spidevice = spidevice
         self.frequency = frequency
         self.baudrate = baudrate
-        self.serial_port = serial_port
         self.tx_power_dbm = tx_power_dbm
         self.reinit_count = reinit_count
         
@@ -56,8 +64,8 @@ class RFM98W_Serial(object):
 
         self.temperature = -999
 
-        self.start()
-    
+        self.led = led
+
 
     def start(self):
         """
@@ -69,7 +77,10 @@ class RFM98W_Serial(object):
         if self.hw:
             self.hw.teardown()
 
-        self.hw = HardwareInterface(self.spidevice)
+        if self.led:
+            self.hw = HardwareInterface(self.spidevice,LED=self.led)
+        else:
+            self.hw = HardwareInterface(self.spidevice)
         self.lora = LoRaRFM98W(self.hw, verbose=False)
 
         logging.debug(f"RFM98W - SX127x Register Dump: {self.lora.backup_registers}")
@@ -85,9 +96,12 @@ class RFM98W_Serial(object):
             deviation = 4800
         elif self.baudrate == 4800:
             deviation = 2400
-        else:
+        elif self.baudrate in [115177,115200]:
             # Default deviation, for 115200 baud
+            # The origin of this number is unknown
             deviation = 71797
+        else:
+            deviation = self.baudrate//2
 
         # Refer https://cdn.sparkfun.com/assets/learn_tutorials/8/0/4/RFM95_96_97_98W.pdf
         self.lora.set_register(0x01,0x00) # FSK Sleep Mode
@@ -128,22 +142,9 @@ class RFM98W_Serial(object):
             logging.info("RFM98W - Radio initialised!")
         else:
             logging.critical("RFM98W - TX Mode not set correctly!")
-        
-        # Now initialise the Serial port for modulation
-        if self.serial_port:
-            try:
-                self.serial = serial.Serial(self.serial_port, self.baudrate)
-                logging.info(f"RFM98W - Opened Serial port {self.serial_port} for modulation.")
-            except Exception as e:
-                logging.critical(f"Could not open serial port! Error: {str(e)}")
-                self.serial = None
 
-        else:
-            # If no serial port info provided, write out to a binary debug file.
-            self.serial = BinaryDebug()
-            logging.info("No serial port provided - using Binary Debug output (binary_debug.bin)")
-
-
+    def scramble(self,data):
+        return data
 
     def shutdown(self):
         """
@@ -166,13 +167,6 @@ class RFM98W_Serial(object):
         except:
             pass
 
-        try:
-            # Close the serial connection
-            self.serial.close()
-            logging.info("RFM98W - Closed Serial Port")
-            self.serial = None
-        except:
-            pass
 
         return
 
@@ -195,14 +189,7 @@ class RFM98W_Serial(object):
 
         return False
     
-
     def transmit_packet(self, packet):
-        """
-        Modulate serial data, using a UART.
-        """
-        if self.serial:
-            self.serial.write(packet)
-
         # Increment transmit packet counter
         self.tx_packet_count += 1
 
@@ -223,6 +210,254 @@ class RFM98W_Serial(object):
         logging.info(f"RFM98W - Temperature: {self.temperature} C")
 
         return self.temperature
+
+class RFM98W_Serial(RFM98W):
+    """
+    RFM98W Wrapper for Wenet Transmission, using 2-FSK Direct-Asynchronous Modulation via a UART.
+    """
+
+    def __init__(
+            self,
+            spidevice=0,
+            frequency=443.500,
+            baudrate=115200,
+            serial_port=None,
+            tx_power_dbm=17,
+            reinit_count=5000
+            ):
+        
+        self.serial_port = serial_port
+
+        super().__init__(spidevice,frequency,baudrate,tx_power_dbm,reinit_count,led=5)
+        self.start()
+    
+
+    def start(self):
+        """
+        Initialise (or re-initialise) both the RFM98W and Serial connections.
+        Configure the RFM98W into direct asynchronous FSK mode, with the appropriate power, deviation, and transmit frequency.
+        """
+        super().start()
+        # Now initialise the Serial port for modulation
+        if self.serial_port:
+            try:
+                self.serial = serial.Serial(self.serial_port, self.baudrate)
+                logging.info(f"RFM98W - Opened Serial port {self.serial_port} for modulation.")
+            except Exception as e:
+                logging.critical(f"Could not open serial port! Error: {str(e)}")
+                self.serial = None
+
+        else:
+            # If no serial port info provided, write out to a binary debug file.
+            self.serial = BinaryDebug()
+            logging.info("No serial port provided - using Binary Debug output (binary_debug.bin)")
+
+
+
+    def shutdown(self):
+        """
+        Shutdown the RFM98W, and close the SPI and Serial connections.
+        """
+        super().shutdown()
+        try:
+            # Close the serial connection
+            self.serial.close()
+            logging.info("RFM98W - Closed Serial Port")
+            self.serial = None
+        except:
+            pass
+
+        return
+
+    
+    def transmit_packet(self, packet):
+        """
+        Modulate serial data, using a UART.
+        """
+        if self.serial:
+            self.serial.write(packet)
+
+        super().transmit_packet(packet) # used to reinit the radio occasionally
+
+
+class RFM98W_I2S(RFM98W):
+    """
+    RFM98W Wrapper for Wenet Transmission, using 2-FSK Direct-Asynchronous Modulation via a I2S.
+    """
+
+    def __init__(
+            self,
+            spidevice=0,
+            baudrate=96000,
+            frequency=443.500,
+            audio_device="hw:CARD=i2smaster,DEV=0",
+            tx_power_dbm=17,
+            reinit_count=5000
+            ):
+        
+        self.audio_width = 2 # bytes
+        self.audio_rate = 48000
+        self.channels = 2
+
+        audio_rates = [8000,16000,22050,44100,48000,96000,176400,192000]
+        logging.debug(f"Searching for best audio sample rate for {baudrate}")
+
+        # This is a naive approach and there are totally more options avaliable to us than this.
+        # We also aren't strictly limited to just whole bytes for sretching the time, however that's easiest.
+
+        for self.audio_rate in audio_rates:
+            self.audio_bit_rate = self.audio_rate * self.channels * (self.audio_width*8)
+            self.bytes_per_bit = self.audio_bit_rate//baudrate//8
+            try:
+                actual_rf_bitrate = self.audio_bit_rate/(self.bytes_per_bit*8)
+            except ZeroDivisionError:
+                logging.debug(f"NO - {self.audio_rate}")
+                continue
+            if (self.audio_bit_rate/baudrate)%8 != 0:
+                logging.debug(f"NO - {self.audio_rate} RF bitrate = {actual_rf_bitrate}")
+            else:
+                logging.debug(f"YES - RF bitrate = {actual_rf_bitrate} Audio bitrate = {self.audio_bit_rate} Audio samplerate = {self.audio_rate} Audio Bytes Per Modem Bit = {self.bytes_per_bit}")
+                break
+        else:
+            logging.critical("Exhausted all audio sample rates")
+            raise ValueError("Baudrate not suitable for soundcard.")
+
+
+        super().__init__(spidevice,frequency,baudrate,tx_power_dbm,reinit_count,led=5) # can't use 21 for LED as I2S is there
+
+
+        if (
+            ((self.audio_rate * self.channels * self.audio_width * 8) / self.baudrate)%8 !=0
+        ):
+            raise ValueError(f"Not aligned audio rate. Must be a whole byte per bit. audio_rate: {self.audio_rate} rate: {self.baudrate}")
+
+      
+
+        self.audio_device = audio_device
+        self.precompute_bytes()
+        self.periodsize = None
+        self.pcm = None
+
+        self.start()
+        
+
+    def start(self):
+        """
+        Initialise (or re-initialise) both the RFM98W and Serial connections.
+        Configure the RFM98W into direct asynchronous FSK mode, with the appropriate power, deviation, and transmit frequency.
+        """
+
+        super().start()
+        
+        # Now initialise the Serial port for modulation
+        if self.audio_device and alsaaudio and not self.pcm:
+            try: 
+                self.pcm = alsaaudio.PCM(device=self.audio_device)
+                logging.info(f"RFM98W - Opened audio device {self.pcm.cardname()} for modulation.")
+                if self.pcm.setrate(self.audio_rate) != self.audio_rate:
+                    logging.critical("Could not set correct audio rate for datarate")
+                if self.pcm.setchannels(self.channels) != self.channels:
+                    logging.critical("could not set channel number")
+            except Exception as e:
+                logging.critical(f"Could not open audio device! Error: {str(e)}")
+        elif not self.pcm:
+            logging.error("No alsaaudio - debugging mode")
+            self.pcm = BinaryDebug()
+
+# first 1000 digits of "A Million Random Digits with 100,000 Normal Deviates"
+# convert to binary by doing odd/even
+
+# a = "1009..."
+# binary_list=[]
+# for digit in a:
+#     binary_list.append (1 if int(digit) % 2 else 0)
+
+# y=0
+# byte_out=0
+# for x in binary_list:
+#     byte_out = byte_out | (x << y)
+#     y += 1
+#     if y > 7:
+#         print(hex(byte_out))
+#         byte_out=0
+#         y=0
+
+    def scramble(self,data):
+        scramble_code = [0xb9, 0x97, 0x93, 0x13, 0xf7, 0xab, 0x1e, 0x88, 0x12, 0xc4, 
+        0x28, 0x80, 0x9, 0xf8, 0xb4, 0x92, 0xfc, 0x32, 0xc6, 0xa6, 
+        0xae, 0xf7, 0x8b, 0x3a, 0xd2, 0xf1, 0xf1, 0x8a, 0x72, 0xcf, 
+        0x3d, 0xc3, 0x9e, 0x52, 0x6e, 0x7a, 0x7e, 0x37, 0xa2, 0x7, 
+        0x17, 0x71, 0x2d, 0x9d, 0x1c, 0x58, 0xc1, 0xb4, 0x65, 0xe4, 
+        0xbe, 0x5b, 0xd1, 0xf, 0xa0, 0x5a, 0x3c, 0x6f, 0xd9, 0x8, 
+        0x9c, 0x6c, 0x5c, 0x6e, 0x85, 0x94, 0xb1, 0x5d, 0xde, 0xd4, 
+        0xc3, 0x55, 0x20, 0x61, 0xd7, 0x6a, 0x81, 0x78, 0x52, 0x46, 
+        0x7c, 0x43, 0x40, 0x63, 0xf1, 0x25, 0xcb, 0xf1, 0x8c, 0xa7, 
+        0x83, 0x5c, 0xa3, 0xba, 0x5c, 0xa3, 0xc5, 0xb6, 0xf, 0x2a, 
+        0x64, 0x5f, 0xec, 0x98, 0xcf, 0xf5, 0xb6, 0x3d, 0x96, 0x42, 
+        0x16, 0x7, 0xec, 0x20, 0x32, 0x4d, 0xc6, 0x17, 0x92, 0xa6, 
+        0x91, 0xc1, 0x92, 0x43, 0x69]
+
+        out_data = b''
+        index=0
+        for x in data:
+            out_data += (x ^ scramble_code[index%len(scramble_code)]).to_bytes()
+            index+=1
+        return out_data
+
+    def precompute_bytes(self):
+        logging.debug("Precomputing byte lookup table")
+        self.byte_to_i2s_bytes ={}
+        for x in range(256):
+            buffer = b''
+            for bit_i in range(7,-1,-1):
+                 bit = (x >> (bit_i)) & 0b1
+                 bit = b'\xff' if bit else b'\x00'
+                 buffer = buffer + (bit*self.bytes_per_bit)
+            self.byte_to_i2s_bytes[x] = buffer
+        logging.debug("Finished creating lookup table")
+
+    def shutdown(self):
+        """
+        Shutdown the RFM98W, and close the SPI and Serial connections.
+        """
+
+        try:
+            # Close the audio device
+            self.pcm.close()
+            logging.info("RFM98W - Closed audio device")
+            self.pcm = None
+        except:
+            pass
+
+        return
+
+
+
+    def transmit_packet(self, packet):
+        """
+        Modulate audio data, using a I2S.
+        """
+        if self.pcm:
+            desired_period_size = (len(packet)*8*self.bytes_per_bit)//self.channels//self.audio_width
+            if (
+                self.periodsize == None or
+                self.periodsize != desired_period_size
+            ):
+                logging.debug(f"Setting period size to: {desired_period_size}")
+                if self.pcm.setperiodsize(desired_period_size) != desired_period_size:
+                        logging.critical(f"could not set period size to match packet size: got {self.pcm.setperiodsize(desired_period_size)}")
+                else:
+                    self.periodsize = desired_period_size
+                    logging.debug(f"Period size set")
+            buffer = b''
+            for i_byte in packet:
+                buffer = buffer + self.byte_to_i2s_bytes[i_byte]
+            frame_length = (len(buffer)//self.channels//self.audio_width)
+            if frame_length % self.periodsize != 0:
+                logging.critical(f"buffer frames length {frame_length} != periodsize {self.periodsize}")
+            self.pcm.write(buffer)
+
+        super().transmit_packet(packet) # used to reinit the radio occasionally
 
 class SerialOnly(object):
     """
@@ -264,7 +499,8 @@ class SerialOnly(object):
             self.serial = BinaryDebug()
             logging.info("SerialOnly - No serial port provided - using Binary Debug output (binary_debug.bin)")
 
-
+    def scramble(self,data):
+        return data
 
     def shutdown(self):
         """
@@ -318,7 +554,7 @@ class BinaryDebug(object):
         # TODO: Add in RS232 framing
         raw_data = np.array([],dtype=np.uint8)
         for d in data:
-            d_array = np.unpackbits(np.fromstring(d,dtype=np.uint8))
+            d_array = np.unpackbits(np.frombuffer(bytes([d]),dtype=np.uint8))
             raw_data = np.concatenate((raw_data,[0],d_array[::-1],[1]))
 
         self.f.write(raw_data.astype(np.uint8).tostring())
@@ -333,15 +569,23 @@ if __name__ == '__main__':
 
     import time
     parser = argparse.ArgumentParser()
-    parser.add_argument("--rfm98w", default=None, type=int, help="If set, configure a RFM98W on this SPI device number.")
+    parser.add_argument("--rfm98w", default=None, type=int, help="If set, configure a RFM98W on this SPI device number. Using UART")
+    parser.add_argument("--rfm98w-i2s", default=None, type=int, help="If set, configure a RFM98W on this SPI device number. Using I2S")
+    parser.add_argument("--audio-device", default="hw:CARD=i2smaster,DEV=0", type=str, help="Sets the audio device for rfm98w-i2s mode.")
     parser.add_argument("--frequency", default=443.500, type=float, help="Transmit Frequency (MHz). (Default: 443.500 MHz)")
-    parser.add_argument("--baudrate", default=115200, type=int, help="Wenet TX baud rate. (Default: 115200).")
+    parser.add_argument("--baudrate", default=None, type=int, help="Wenet TX baud rate. (Default: 115200 for uart and 96000 for I2S). Known working I2S baudrates: 8000, 24000, 48000, 96000 ")
     parser.add_argument("--serial_port", default="/dev/ttyAMA0", type=str, help="Serial Port for modulation.")
     parser.add_argument("--tx_power", default=17, type=int, help="Transmit power in dBm (Default: 17 dBm, 50mW. Allowed values: 2-17)")
     parser.add_argument("--shutdown", default=False, action="store_true", help="Shutdown Transmitter after configuration.")
     parser.add_argument("--test_modulation", default=False, action="store_true", help="Transmit a sequence of dummy packets as a test.")
     parser.add_argument("-v", "--verbose", action='store_true', default=False, help="Show additional debug info.")
     args = parser.parse_args()
+
+    if args.baudrate == None:
+        if args.rfm98w:
+            args.baudrate = 115200
+        elif args.rfm98w_i2s:
+            args.baudrate = 96000
 
     if args.verbose:
         logging_level = logging.DEBUG
@@ -359,6 +603,14 @@ if __name__ == '__main__':
             frequency = args.frequency,
             baudrate = args.baudrate,
             serial_port = args.serial_port,
+            tx_power_dbm = args.tx_power
+        )
+    elif args.rfm98w_i2s is not None:
+        radio = RFM98W_I2S(
+            spidevice = args.rfm98w,
+            baudrate = args.baudrate,
+            frequency = args.frequency,
+            audio_device= args.audio_device,
             tx_power_dbm = args.tx_power
         )
     # Other radio options would go here.

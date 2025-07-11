@@ -38,7 +38,7 @@ class HardwareInterface(object):
     spi = None
     spi_speed = 1000000
 
-    def __init__(self, device=0):
+    def __init__(self, device=0, LED=None):
         """ Configure the Raspberry GPIOs
         :rtype : None
         """
@@ -46,11 +46,11 @@ class HardwareInterface(object):
         GPIO.setmode(GPIO.BCM)
         
         if device == 0:
-            self.LED = 5
+            self.LED = 5 if LED == None else LED
             self.DIO0 = 25
             self.DIO5 = 24
         else:
-            self.LED = 21
+            self.LED = 21 if LED == None else LED # i2s method requires pin 21
             self.DIO0 = 16
             self.DIO5 = 12
 
