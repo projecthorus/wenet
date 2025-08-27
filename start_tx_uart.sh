@@ -1,10 +1,11 @@
 #!/bin/bash
 #
-#	Wenet TX-side Initialisation Script - Wenet v2 (I2S) Modulation
+#	Wenet TX-side Initialisation Script - Legacy UART Modulation
 #	2025-08-27 Mark Jessop <vk5qi@rfhead.net>
 #
 #	Run this to set up an attached RFM98W and start transmitting!
 #	Replace the transmit frequency and callsign with your own.
+#
 #
 
 # A callsign which will be included in the Wenet Packets.
@@ -41,15 +42,23 @@ EXPOSURE=0.0
 # Refer near the end of this file for image flipping and overlay options
 
 # Baud Rate
-# Only 96000 baud is known working in I2S mode
+# Known working transmit baud rates are 115200 (the preferred default).
 # Lower baud rates *may* work, but will need a lot of testing on the receiver
 # chain to be sure they perform correctly.
-BAUDRATE=96000
+BAUDRATE=115200
 
 # RFM98W SPI Device
 # SPI device number of your RFM98W chip
 # This will either be 0 or 1 on a RPi.
 SPIDEVICE=0
+
+# Modulation UART
+# The UART used to modulate the RFM98W with our Wenet transmission
+# We want to be using the PL011 UART, *not* the Mini-UART
+# On a Pi Zero W, you may need to disable bluetooth. See here for more info:
+# https://www.raspberrypi.com/documentation/computers/configuration.html#uarts-and-device-tree
+SERIALPORT=/dev/ttyAMA0
+
 
 # CHANGE THE FOLLOWING LINE TO REFLECT THE ACTUAL PATH TO THE TX FOLDER.
 # i.e. it may be /home/username/dev/wenet/tx/
@@ -117,9 +126,10 @@ sleep 10
 # --use_focus_fom
 
 python3 tx_picamera2_gps.py \
-    --rfm98w-i2s $SPIDEVICE \
+    --rfm98w $SPIDEVICE \
     --baudrate $BAUDRATE \
     --frequency $TXFREQ \
+    --serial_port $SERIALPORT \
     --tx_power $TXPOWER \
     --gps $GPSPORT \
     --gpsbaud $GPSBAUD \

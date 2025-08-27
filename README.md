@@ -8,9 +8,11 @@ Transmit and Receive code for the Project Horus High-Speed Imagery Payload - 'We
 The above image was captured on Horus 42, and downlinked via Wenet. The original downlinked resolution was 1920x1440, and has since been re-sized. The full resolution version is available here: http://rfhead.net/temp/horus_42_full.jpg
 
 ## What is it?
-Wenet is a radio modem designed to downlink imagery from High-Altitude Balloon launches. It uses Frequency-Shift-Keying (FSK) at a rate of ~115kbit/s, and uses LDPC forward-error-correction to provide 6 dB of coding gain.
+Wenet is a radio modem designed to downlink imagery from High-Altitude Balloon launches. It uses Frequency-Shift-Keying (FSK) at a rate of ~96 kbit/s, and uses LDPC forward-error-correction to provide 6 dB of coding gain.
 
-The transmit side is designed to run on a Raspberry Pi, and the UART is used to modulate a HopeRF RFM98W in direct-asynchronous FSK mode. We usually operate in the quieter 440-450 MHz portion of the amateur 70cm band, with our nominal frequency being 443.5 MHz. Due to the non-ideal filtering in the transmitter module the [occupied bandwidth](https://github.com/projecthorus/wenet/raw/master/doc/occupied_bw.png) is ~300 kHz, so Wenet is not suitable for operation in the 434 MHz ISM band. The usual [transmit power](https://raw.githubusercontent.com/projecthorus/wenet/master/doc/tx_power.png) we use is 50mW, into an inverted 1/4-wave monopole underneath the payload. Details on the modulation and packet formats are [available here](https://github.com/projecthorus/wenet/wiki/Modem-&-Packet-Format-Details).
+The transmit side is designed to run on a Raspberry Pi, and the latest 'Wenet v2' mode uses the I2S peripheral to modulate a HopeRF RFM98W in direct-asynchronous FSK mode. The 'legacy' Wenet mode used the UART to modulate the radio, which resulted in a 20% overhead from RS232 framing.
+
+We usually operate in the quieter 440-450 MHz portion of the amateur 70cm band, with our nominal frequency being 443.5 MHz. Due to the non-ideal filtering in the transmitter module the [occupied bandwidth](https://github.com/projecthorus/wenet/raw/master/doc/occupied_bw.png) is ~200 kHz, so Wenet is not suitable for operation in the 434 MHz ISM band. The usual [transmit power](https://raw.githubusercontent.com/projecthorus/wenet/master/doc/tx_power.png) we use is 50mW, into an inverted 1/4-wave monopole underneath the payload. Details on the modulation and packet formats are [available here](https://github.com/projecthorus/wenet/wiki/Modem-&-Packet-Format-Details).
 
 The receiver side makes used of Software Defined Radio (in particular, RTLSDR dongles), and a high performance FSK modem written by [David Rowe](http://rowetel.com/). Received images are available locally via a web interface, and are also uploaded to https://ssdv.habhub.org/ where packets contributed by many stations can be used to form a complete image live during a flight.
 
@@ -28,6 +30,7 @@ Bench [testing](https://www.rowetel.com/?p=5080) has shown that for a receiver w
 * v1.0 - Docker image released, documentation updated.
 * v1.2 - Switched to the libcamera2 library, support for PiCam v3, and many additions to downlink telemetry.
 * v1.2.1 - Further optimizations for the PiCam v3. Flown on [Horus 63](https://www.areg.org.au/archives/212110).
+* v2.0 - Added Wenet v2 mode, using I2S modulation for less overhead. Flown on [Horus 64B](https://www.areg.org.au/archives/212276).
 
 ## How do I Receive it?
 You can receive Wenet transmissions using a Linux computer, a RTLSDR, and a small yagi antenna (sometimes a vertical can work too). You can find a guide on how to get setup to receive imagery here: https://github.com/projecthorus/wenet/wiki/Wenet-RX-Instructions-(Linux-using-Docker)

@@ -19,7 +19,7 @@ from base64 import b64encode
 # Check if we are running in Python 2 or 3
 PY3 = sys.version_info[0] == 3
 
-WENET_VERSION = "1.2.1"
+WENET_VERSION = "2.0.0"
 
 WENET_IMAGE_UDP_PORT        = 7890
 WENET_TELEMETRY_UDP_PORT    = 55672
