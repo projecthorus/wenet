@@ -18,7 +18,7 @@
 import sys
 import os
 import datetime
-import crc
+import crcmod
 import json
 import shutil
 import socket
@@ -31,19 +31,6 @@ import numpy as np
 from ldpc_encoder import *
 from radio_wrappers import *
 from queue import Queue
-
-def crc16_ccitt(data):
-    """
-    Calculate the CRC16 CCITT checksum of *data*.
-    
-    (CRC16 CCITT: start 0xFFFF, poly 0x1021)
-    """
-
-    calculator = crc.Calculator(crc.Configuration(
-        16, 0x1021,0xffff
-    ))
-
-    return calculator.checksum(data)
 
 class PacketTX(object):
     """ Packet Transmitter Class
@@ -105,7 +92,7 @@ class PacketTX(object):
         self.callsign = callsign.encode('ascii')
         self.fec = fec
 
-        self.crc16 = crc16_ccitt
+        self.crc16 = crcmod.predefined.mkCrcFun('crc-ccitt-false')
 
         self.idle_message = self.frame_packet(self.idle_sequence,fec=fec)
 
@@ -584,6 +571,29 @@ class PacketTX(object):
 
 
 
+
+class BinaryDebug(object):
+    """ Debug binary 'transmitter' Class
+    Used to write packet data to a file in one-bit-per-char (i.e. 0 = 0x00, 1 = 0x01)
+    format for use with codec2-dev's fsk modulator.
+    Useful for debugging, that's about it.
+    """
+    def __init__(self):
+        self.f = open("debug.bin",'wb')
+
+    def write(self,data):
+        # TODO: Add in RS232 framing
+        raw_data = np.array([],dtype=np.uint8)
+        for d in data:
+            d_array = np.unpackbits(np.fromstring(d,dtype=np.uint8))
+            raw_data = np.concatenate((raw_data,[0],d_array[::-1],[1]))
+
+        self.f.write(raw_data.astype(np.uint8).tostring())
+
+    def close(self):
+        self.f.close()
+
+
 if __name__ == "__main__":
     """ Test script, which transmits a text message repeatedly. """
     import argparse
@@ -591,7 +601,6 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--rfm98w", default=None, type=int, help="If set, configure a RFM98W on this SPI device number.")
     parser.add_argument("--rfm98w-i2s", default=None, type=int, help="If set, configure a RFM98W on this SPI device number. Using I2S")
-    parser.add_argument("--binary-debug", default=False,  action="store_true", help="If set, configure a debug file based radio")
     parser.add_argument("--audio-device", default="hw:CARD=i2smaster,DEV=0", type=str, help="Alsa device string. Sets the audio device for rfm98w-i2s mode. (Default: hw:CARD=i2smaster,DEV=0)")
     parser.add_argument("--frequency", default=443.500, type=float, help="Transmit Frequency (MHz). (Default: 443.500 MHz)")
     parser.add_argument("--baudrate", default=None, type=int, help="Wenet TX baud rate. (Default: 115200 for uart and 96000 for I2S). Known working I2S baudrates: 8000, 24000, 48000, 96000")
@@ -608,7 +617,6 @@ if __name__ == "__main__":
 
     if args.verbose:
         logging_level = logging.DEBUG
-        logging.getLogger().setLevel(logging.DEBUG)
     else:
         logging_level = logging.INFO
 
@@ -633,8 +641,6 @@ if __name__ == "__main__":
             audio_device= args.audio_device,
             tx_power_dbm = args.tx_power
         )
-    elif args.binary_debug is not None:
-        radio = BinaryDebug()
     # Other radio options would go here.
     else:
         logging.critical("No radio type specified! Exiting")

@@ -45,7 +45,7 @@ RUN git clone https://github.com/ka9q/ka9q-radio.git /root/ka9q-radio && \
 # --no-binary numpy
 RUN --mount=type=cache,target=/root/.cache/pip pip3 install \
   --user --no-warn-script-location --ignore-installed --break-system-packages \
-    crc \
+    crcmod \
     flask \
     flask-socketio \
     simple-websocket \
