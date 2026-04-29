@@ -8,7 +8,7 @@ You can either use the files in this folder to order some PCBs on JLCPCB or ask 
 
 * made for Wenet, no modifications needed
 * simple to assemble
-* flight proven at the FUNK.TAG Kassel 2026
+* flight proven at the [FUNK.TAG Kassel 2026](https://g-fliegt.de/news/start-beim-funk-tag-2026-erfolgreich)
 * made for RFM98W modules
 * UART header for conencting a GPS (BN220 for example)
 * 5V header for external devices
@@ -25,3 +25,8 @@ For the flight i used this hat on a PiZero2 W and a Picam 2 as well as a groundp
 The maximum received range was over 300km on this first flight of the hardware.
 
 ![Ready to fly hat on PiZero2 W](/hardware/RTF_TYNET_WENET_TX_HAT_V1.jpg)
+
+
+## Schematic
+
+![Schematic](/hardware/Schematic_TYNET_WENET_TX_HAT_V1.png)
