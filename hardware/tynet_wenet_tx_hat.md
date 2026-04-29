@@ -1,10 +1,10 @@
 # WENET tx Hat by Tynet.eu
 
-Because the recommended pi hats for building WENETV2 TX hardware are not easy to come by in europe and need to be modified i designed my own hat.
+Since the recommended Raspberry Pi HATs for building WENETV2 TX hardware are difficult to source in Europe and often require manual modification, I designed my own custom HAT.
 
-This is based on the Adafruit design and in general quite simple, it needs no modification cable because it's just amde for WENET tranmitting.
+The design is based on the original Adafruit layout but remains quite simple. It requires no modification cables because it was purpose-built for WENET transmission.
 
-You can either use the files in this folder to order some PCBs on JLCPCB or ask me (do5ty@darc.de) if there is a baord avaliable for purchase.
+You can either use the files in this folder to order PCBs from JLCPCB or contact me directly (do5ty@darc.de) to see if I have any assembled boards available for purchase.
 
 * made for Wenet, no modifications needed
 * simple to assemble
@@ -20,9 +20,11 @@ The PCB should look like this if you get them froma factory like JLCPCB, you onl
 
 ![PCB from the factory](/hardware/PCB_TYNET_WENET_TX_HAT_V1.jpg)
 
-In my case i also added a BN220 GPS to the serial port for my flight, this will directly conenct over the pin header to the pi and can be used with the tx script.
-For the flight i used this hat on a PiZero2 W and a Picam 2 as well as a groundplane antenna at the bottom of the payload.
-The maximum received range was over 300km on this first flight of the hardware.
+In my setup, I added a BN-220 GPS module to the serial port for the flight. This connects directly to the Raspberry Pi via the pin header and is fully compatible with the TX script.
+
+For the flight, I used this HAT on a Pi Zero 2 W with a Pi Camera 2 and a ground plane antenna mounted at the bottom of the payload.
+
+The maximum reception range exceeded 300 km during this first flight of the hardware.
 
 ![Ready to fly hat on PiZero2 W](/hardware/RTF_TYNET_WENET_TX_HAT_V1.jpg)
 
