@@ -15,8 +15,8 @@ MYCALL=N0CALL
 TXFREQ=443.500
 
 # Transmit power, in dBm
-# Allowed values are from 2 through 17 dBm.
-TXPOWER=17
+# Allowed values are from 2 through 17 dBm, or 20 dBm for high power (actually just 1.4 dB above the 17 dBm setting)
+TXPOWER=20
 
 # GPS Port and baud rate
 # Note that we only support uBlox GPS units
