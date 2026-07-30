@@ -122,12 +122,24 @@ class RFM98W(object):
     
         # Set Transmit power
         tx_power_lookup = {0:0x80, 1:0x80, 2:0x80, 3:0x81, 4:0x82, 5:0x83, 6:0x84, 7:0x85, 8:0x86, 9:0x87, 10:0x88, 11:0x89, 12:0x8A, 13:0x8B, 14:0x8C, 15:0x8D, 16:0x8E, 17:0x8F}
+        if self.tx_power_dbm == 20:
+            # Enable +20 dBm High Power Mode
+            self.lora.set_register(0x09, 0xFF) # Max out PA_BOOST
+            self.lora.set_register(0x0B, 0x39) # Raise Over-Current Protection to 240mA
+            self.lora.set_register(0x4D, 0x87) # Enable High Power PA_DAC
+            logging.info("RFM98W - TX Power set to High Power 20 dBm.")
+
         if self.tx_power_dbm in tx_power_lookup:
             self.lora.set_register(0x09, tx_power_lookup[self.tx_power_dbm])
+            self.lora.set_register(0x0B, 0x2B) # Restore default OCP
+            self.lora.set_register(0x4D, 0x84) # Restore default PA_DAC
             logging.info(f"RFM98W - TX Power set to {self.tx_power_dbm} dBm ({hex(tx_power_lookup[self.tx_power_dbm])}).")
+            
         else:
             # Default to low power, 1.5mW or so
             self.lora.set_register(0x09, 0x80)
+            self.lora.set_register(0x0B, 0x2B) # Restore default OCP
+            self.lora.set_register(0x4D, 0x84) # Restore default PA_DAC
             logging.info(f"RFM98W - Unknown TX power, setting to 2 dBm (0x80).")
 
         # Go into TX mode.
