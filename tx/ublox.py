@@ -1462,7 +1462,8 @@ if __name__ == "__main__":
 
         if sats:
             out.append('')
-            out.append(f"  {'GNSS':<8} {'SvID':>4}  {'dBHz':>4}  {'\u2501'*20}  {'El':>3} {'Az':>3}")
+            signal_header = '\u2501' * 20
+            out.append(f"  {'GNSS':<8} {'SvID':>4}  {'dBHz':>4}  {signal_header}  {'El':>3} {'Az':>3}")
             out.append('  ' + '\u2500' * 50)
             for sv in sorted(sats, key=lambda s: (-(s['flags'] & 0x08), -s['cno'])):
                 used  = bool(sv['flags'] & 0x08)
@@ -1567,5 +1568,4 @@ if __name__ == "__main__":
 
     except KeyboardInterrupt:
         gps.close()
-
 
