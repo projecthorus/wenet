@@ -54,6 +54,8 @@ class BOARD:
         GPIO.setup(BOARD.SWITCH, GPIO.IN, pull_up_down=GPIO.PUD_DOWN) 
         # DIOx
         for gpio_pin in [BOARD.DIO0, BOARD.DIO1, BOARD.DIO2, BOARD.DIO3]:
+            if gpio_pin == 24 and GPIO.gpio_function(24) == 0: # skip GPIO24 if it is configured as an output
+                continue
             GPIO.setup(gpio_pin, GPIO.IN, pull_up_down=GPIO.PUD_DOWN)
         # blink 2 times to signal the board is set up
         BOARD.blink(.1, 2)

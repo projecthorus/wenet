@@ -271,7 +271,7 @@ class LoRaRFM98W(object):
         :return: New register settings (3 bytes [msb, mid, lsb])
         :rtype: list[int]
         """
-        assert self.mode == MODE.SLEEP or self.mode == MODE.STDBY or self.mode == MODE.FSK_STDBY
+        assert self.mode == MODE.SLEEP or self.mode == MODE.STDBY or self.mode == MODE.FSK_STDBY or self.mode == MODE.FSK_SLEEP
         i = int(f * 16384.)    # choose floor
         msb = i // 65536
         i -= msb * 65536

@@ -41,6 +41,7 @@ class MODE:
     RXSINGLE = 0x86
     CAD      = 0x87
     FSK_STDBY= 0x01     # needed for calibration
+    FSK_SLEEP= 0x00
 
 
 @add_lookup

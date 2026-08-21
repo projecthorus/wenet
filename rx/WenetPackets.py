@@ -14,11 +14,12 @@ import requests
 import sys
 from hashlib import sha256
 from base64 import b64encode
+import cbor2
 
 # Check if we are running in Python 2 or 3
 PY3 = sys.version_info[0] == 3
 
-WENET_VERSION = "2.0.1"
+WENET_VERSION = "2.1.0"
 
 WENET_IMAGE_UDP_PORT        = 7890
 WENET_TELEMETRY_UDP_PORT    = 55672
@@ -29,13 +30,14 @@ class WENET_PACKET_TYPES:
     GPS_TELEMETRY           = 0x01
     ORIENTATION_TELEMETRY   = 0x02
     SEC_PAYLOAD_TELEMETRY   = 0x03
+    CBOR_PAYLOAD_TELEMETRY  = 0x05
     IMAGE_TELEMETRY         = 0x54
     SSDV                    = 0x55
     IDLE                    = 0x56
 
 
 class WENET_PACKET_LENGTHS:
-    GPS_TELEMETRY           = 73
+    GPS_TELEMETRY           = 81
     ORIENTATION_TELEMETRY   = 43
     IMAGE_TELEMETRY         = 80
 
@@ -57,6 +59,8 @@ def packet_to_string(packet):
         return orientation_telemetry_string(packet)
     elif packet_type == WENET_PACKET_TYPES.SEC_PAYLOAD_TELEMETRY:
         return sec_payload_packet_string(packet)
+    elif packet_type == WENET_PACKET_TYPES.CBOR_PAYLOAD_TELEMETRY:
+        return cbor_payload_packet_string(packet)
     elif packet_type == WENET_PACKET_TYPES.IMAGE_TELEMETRY:
         return image_telemetry_string(packet)
     elif packet_type == WENET_PACKET_TYPES.SSDV:
@@ -204,10 +208,19 @@ def gps_telemetry_decoder(packet):
     else:
         pass
 
+    # Determine which optional field groups are present before unpacking.
+    # Transmitters pad unused regions with 0x55 bytes, so test the raw byte
+    # regions rather than individual decoded values (a single decoded field
+    # can legitimately equal 0x5555 = 21845, e.g. batt_v of 21845 mV).
+    # Field regions: [0:35] base telemetry, [35:73] 2024-09 system telemetry,
+    # [73:81] 2025-11 power telemetry.
+    sys_telem_valid = packet[35:73] != b'\x55' * 38
+    power_telem_valid = packet[73:81] != b'\x55' * 8
+
     # Wrap the next bit in exception handling.
     try:
         # Unpack the packet into a list.
-        data = struct.unpack(">BHIBffffffBBBffHfffffff", packet)
+        data = struct.unpack(">BHIBffffffBBBffHfffffffHHf", packet)
 
         gps_data['week']    = data[1]
         gps_data['iTOW']    = data[2]/1000.0 # iTOW provided as milliseconds, convert to seconds.
@@ -222,32 +235,24 @@ def gps_telemetry_decoder(packet):
         gps_data['gpsFix']  = data[11]
         gps_data['dynamic_model'] = data[12]
         # New fields 2024-09
-        gps_data['radio_temp'] = round(data[13],1)
-        gps_data['cpu_temp'] = round(data[14],1)
-        gps_data['cpu_speed'] = data[15]
-        gps_data['load_avg_1'] = round(data[16],3)
-        gps_data['load_avg_5'] = round(data[17],3)
-        gps_data['load_avg_15'] = round(data[18],3)
-        gps_data['disk_percent'] = round(data[19],3)
-        gps_data['lens_position'] = round(data[20],4)
-        gps_data['sensor_temp'] = round(data[21],1)
-        gps_data['focus_fom'] = int(data[22])
-        # Check to see if we actually have real data in these new fields.
-        # If its an old transmitter, it will have 0x55 in these spots, which we can detect
-        if gps_data['cpu_speed'] == 21845:
-            # 0x5555 -> 21825, which we use as an indication that padding is in use.
-            # Set all the new fields to invalid values
-            gps_data['radio_temp'] = -999.0
-            gps_data['cpu_temp'] = -999.0
-            gps_data['cpu_speed'] = 0
-            gps_data['load_avg_1'] = 0
-            gps_data['load_avg_5'] = 0
-            gps_data['load_avg_15'] = 0
-            gps_data['disk_percent'] = -1.0
-            gps_data['lens_position'] = -999.0
-            gps_data['sensor_temp'] = -999.0
-            gps_data['focus_fom'] = -999.0
-
+        gps_data['sys_telem_valid'] = sys_telem_valid
+        if sys_telem_valid:
+            gps_data['radio_temp'] = round(data[13],1)
+            gps_data['cpu_temp'] = round(data[14],1)
+            gps_data['cpu_speed'] = data[15]
+            gps_data['load_avg_1'] = round(data[16],3)
+            gps_data['load_avg_5'] = round(data[17],3)
+            gps_data['load_avg_15'] = round(data[18],3)
+            gps_data['disk_percent'] = round(data[19],3)
+            gps_data['lens_position'] = round(data[20],4)
+            gps_data['sensor_temp'] = round(data[21],1)
+            gps_data['focus_fom'] = int(data[22])
+        # New fields 2025-11
+        gps_data['power_telem_valid'] = power_telem_valid
+        if power_telem_valid:
+            gps_data['batt_v'] = data[23]/1000.0 # mv -> v
+            gps_data['batt_i'] = data[24]
+            gps_data['aux_temp'] = round(data[25],1)
 
         # Perform some post-processing on the data, to make some of the fields easier to read.
 
@@ -308,7 +313,7 @@ def gps_telemetry_string(packet):
     if gps_data['error'] != 'None':
         return "GPS: ERROR Could not decode."
     else:
-        gps_data_string = "GPS: %s Lat/Lon: %.5f,%.5f Alt: %dm, Speed: H %dkph V %.1fm/s, Heading: %d deg, Fix: %s, SVs: %d, DynModel: %s, Radio Temp: %.1f, CPU Temp: %.1f, CPU Speed: %d, Load Avg: %.2f, %.2f, %.2f, Disk Usage: %.1f%%, Lens Pos: %.4f, Sensor Temp: %.1f, FocusFoM: %d" % (
+        gps_data_string = "GPS: %s Lat/Lon: %.5f,%.5f Alt: %dm, Speed: H %dkph V %.1fm/s, Heading: %d deg, Fix: %s, SVs: %d, DynModel: %s" % (
             gps_data['timestamp'],
             gps_data['latitude'],
             gps_data['longitude'],
@@ -318,7 +323,11 @@ def gps_telemetry_string(packet):
             int(gps_data['heading']),
             gps_data['gpsFix_str'],
             gps_data['numSV'],
-            gps_data['dynamic_model_str'],
+            gps_data['dynamic_model_str']
+            )
+        
+        if gps_data['sys_telem_valid']:
+            gps_data_string = gps_data_string + ", Radio Temp: %.1f, CPU Temp: %.1f, CPU Speed: %d, Load Avg: %.2f, %.2f, %.2f, Disk Usage: %.1f%%, Lens Pos: %.4f, Sensor Temp: %.1f, FocusFoM: %d" % (
             gps_data['radio_temp'],
             gps_data['cpu_temp'],
             gps_data['cpu_speed'],
@@ -329,6 +338,13 @@ def gps_telemetry_string(packet):
             gps_data['lens_position'],
             gps_data['sensor_temp'],
             int(gps_data['focus_fom'])
+            )
+
+        if gps_data['power_telem_valid']:
+            gps_data_string = gps_data_string + ", Batt V: %.2f, Batt I: %.0f, Aux Temp: %0.1f" % (
+            gps_data['batt_v'],
+            gps_data['batt_i'],
+            gps_data['aux_temp']
             )
 
         return gps_data_string
@@ -623,3 +639,38 @@ def sec_payload_packet_string(packet):
 
         return _sec_payload_str + "Payload Type %d" % _payload_type
 
+def cbor_payload_decode(packet):
+    """ Split a CBOR payload packet into fields """
+    # We need the packet as a string, convert to a string in case we were passed a list of bytes.
+    packet = bytes(bytearray(packet))
+
+    if len(packet) < 2:
+        return {'error': 'CBOR payload packet too short.'}
+
+    # Packet layout is [0x05][length][CBOR]. packet[0] is the packet type, so the length
+    # lives at packet[1] and the payload starts at packet[2].
+    length = packet[1]
+    payload = packet[2:2+length]
+
+    if len(payload) < length:
+        return {'error': 'CBOR payload packet truncated.'}
+
+    try:
+        return cbor2.loads(payload)
+    except:
+        return {'error': 'Could not decode CBOR payload packet.'}
+
+def cbor_payload_packet_string(packet):
+    """ Provide a string representation of a CBOR payload packet. """
+
+    _cbor_payload = cbor_payload_decode(packet)
+
+    # Check if we could split the packet into its expected contents. CBOR can legally
+    # decode to a list or an integer, so test the type before testing for the error key.
+    if not isinstance(_cbor_payload, dict):
+        return "CBOR Payload Packet: %s" % _cbor_payload
+
+    if 'error' in _cbor_payload:
+        return "CBOR Payload Packet: Error - Could not Decode."
+
+    return "CBOR Payload Packet: %s" % _cbor_payload

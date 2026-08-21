@@ -73,7 +73,7 @@ def trigger_gui_update(filename, text = "None", metadata = None):
 # Telemetry packets are send via UDP broadcast in case there is other software on the local
 # network that wants them.
 def broadcast_telemetry_packet(data, headless=False):
-	global WENET_IMAGE_UDP_PORT, WENET_TELEMETRY_UDP_PORT
+	global WENET_IMAGE_UDP_PORT, WENET_TELEMETRY_UDP_PORT, current_callsign
 	telemetry_socket = socket.socket(socket.AF_INET,socket.SOCK_DGRAM)
 	# Set up the telemetry socket so it can be re-used.
 	telemetry_socket.setsockopt(socket.SOL_SOCKET,socket.SO_BROADCAST,1)
@@ -86,7 +86,7 @@ def broadcast_telemetry_packet(data, headless=False):
 		pass
 
 	# Place data into dictionary.
-	data = {'type': 'WENET', 'packet': list(bytearray(data))}
+	data = {'type': 'WENET', 'callsign': current_callsign, 'packet': list(bytearray(data))}
 
 	# Send to broadcast if we can.
 	try:
@@ -125,6 +125,13 @@ def log_telemetry_packet(packet):
 		decoded['payload'] = codecs.encode(decoded['payload'],'hex').decode()
 
 		_log_f = open(LOG_FILENAME+"_secondary.log",'a')
+		_log_f.write(json.dumps(decoded)+"\n")
+		_log_f.close()
+
+	elif packet_type == WENET_PACKET_TYPES.CBOR_PAYLOAD_TELEMETRY:
+		decoded = cbor_payload_decode(packet)
+
+		_log_f = open(LOG_FILENAME+"_cbor.log",'a')
 		_log_f.write(json.dumps(decoded)+"\n")
 		_log_f.close()
 
@@ -202,6 +209,11 @@ while True:
 			log_telemetry_packet(data)
 
 		elif packet_type == WENET_PACKET_TYPES.SEC_PAYLOAD_TELEMETRY:
+			broadcast_telemetry_packet(data)
+			logging.info(packet_to_string(data))
+			log_telemetry_packet(data)
+
+		elif packet_type == WENET_PACKET_TYPES.CBOR_PAYLOAD_TELEMETRY:
 			broadcast_telemetry_packet(data)
 			logging.info(packet_to_string(data))
 			log_telemetry_packet(data)

@@ -15,7 +15,7 @@ MYCALL=N0CALL
 TXFREQ=443.500
 
 # Transmit power, in dBm
-# Allowed values are from 2 through 17 dBm.
+# Allowed values are from 2 through 17 dBm, and 20dBm.
 TXPOWER=17
 
 # GPS Port and baud rate

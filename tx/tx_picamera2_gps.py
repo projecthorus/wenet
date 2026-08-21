@@ -12,11 +12,14 @@ import WenetPiCamera2
 import ublox
 import argparse
 import logging
+import signal
 import time
 import os
 import subprocess
 import traceback
+from threading import Thread
 from radio_wrappers import *
+import PowerTelem
 
 
 parser = argparse.ArgumentParser()
@@ -30,7 +33,7 @@ parser.add_argument("--audio-device", default="hw:CARD=i2smaster,DEV=0", type=st
 parser.add_argument("--frequency", default=443.500, type=float, help="Transmit Frequency (MHz). (Default: 443.500 MHz)")
 parser.add_argument("--baudrate", default=None, type=int, help="Wenet TX baud rate. (Default: 115200 for uart and 96000 for I2S). Known working I2S baudrates: 8000, 24000, 48000, 96000.")
 parser.add_argument("--serial_port", default="/dev/ttyAMA0", type=str, help="Serial Port for modulation.")
-parser.add_argument("--tx_power", default=17, type=int, help="Transmit power in dBm (Default: 17 dBm, 50mW. Allowed values: 2-17)")
+parser.add_argument("--tx_power", default=17, type=int, help="Transmit power in dBm (Default: 17 dBm, 50mW. Allowed values: 2-17, 20)")
 parser.add_argument("--vflip", action='store_true', default=False, help="Flip captured image vertically.")
 parser.add_argument("--hflip", action='store_true', default=False, help="Flip captured image horizontally.")
 parser.add_argument("--resize", type=float, default=0.5, help="Resize raw image from camera by this factor before transmit (in both X/Y, to nearest multiple of 16 pixels). Default=0.5")
@@ -43,6 +46,7 @@ parser.add_argument("--use_focus_fom", action='store_true', default=False, help=
 parser.add_argument("--num_images", type=int, default=5, help="Number of images to capture on each cycle. (Default: 5)")
 parser.add_argument("--image_delay", type=float, default=1.0, help="Delay time between each image capture. (Default: 1 second)")
 parser.add_argument("-v", "--verbose", action='store_true', default=False, help="Show additional debug info.")
+parser.add_argument("--power_telem", action='store_true', default=False, help="Transmit power telemetry collected from ADS1115")
 args = parser.parse_args()
 
 if args.baudrate == None:
@@ -88,11 +92,90 @@ else:
 	logging.critical("No radio type specified! Exiting")
 	sys.exit(1)
 
+if args.power_telem:
+	power_telem = PowerTelem.WenetPiHAT()
+else:
+	power_telem = None
+
+
+# Hardware Watchdog
+#
+# One-time setup on the Wenet Pi (survives reboots):
+#
+# 1. Raspberry Pi OS enables a systemd-managed watchdog via
+#    /usr/lib/systemd/system.conf.d/40-rpi-enable-watchdog.conf
+#    (RuntimeWatchdogSec=1m, RebootWatchdogSec=2m). Override it and reboot:
+#      sudo mkdir -p /etc/systemd/system.conf.d/
+#      sudo tee /etc/systemd/system.conf.d/no-watchdog.conf << 'EOF'
+#      [Manager]
+#      RuntimeWatchdogSec=off
+#      RebootWatchdogSec=off
+#      WatchdogDevice=
+#      EOF
+#      sudo reboot
+#    Verify both are free after reboot: sudo fuser /dev/watchdog /dev/watchdog0  (should return nothing)
+#
+# 2. Allow non-root access to /dev/watchdog:
+#      sudo sh -c 'echo "KERNEL==\"watchdog\", GROUP=\"gpio\", MODE=\"0660\"" > /etc/udev/rules.d/60-watchdog.rules'
+#      sudo udevadm control --reload-rules && sudo udevadm trigger --action=change /dev/watchdog
+#
+# The BCM283x watchdog has a fixed 15-second timeout.
+# This class pets it only when tx_packet_count is still incrementing,
+# so a hung pcm.write() (or any other tx_thread block) triggers a hardware reset.
+
+class HardwareWatchdog:
+    def __init__(self, radio, pet_interval=5, device='/dev/watchdog'):
+        self.radio = radio
+        self.pet_interval = pet_interval
+        self.device = device
+        self._wdog = None
+        self._running = False
+
+    def start(self):
+        try:
+            self._wdog = open(self.device, 'wb', buffering=0)
+            logging.info(f"Watchdog: opened {self.device} (BCM283x, 15s timeout)")
+        except Exception as e:
+            logging.warning(f"Watchdog: could not open {self.device}: {e}")
+            return
+        self._running = True
+        t = Thread(target=self._loop, daemon=True)
+        t.start()
+
+    def _loop(self):
+        last_count = self.radio.tx_packet_count
+        while self._running:
+            time.sleep(self.pet_interval)
+            current_count = self.radio.tx_packet_count
+            if current_count != last_count:
+                try:
+                    self._wdog.write(b'1')
+                except Exception as e:
+                    logging.error(f"Watchdog: pet failed: {e}")
+                last_count = current_count
+            else:
+                logging.warning("Watchdog: tx_packet_count stalled — TX thread may be frozen, not petting")
+
+    def disarm(self):
+        """Write magic 'V' before closing to prevent an unwanted reboot on clean shutdown."""
+        self._running = False
+        if self._wdog:
+            try:
+                self._wdog.write(b'V')
+                self._wdog.close()
+                logging.info("Watchdog: disarmed cleanly")
+            except Exception as e:
+                logging.warning(f"Watchdog: disarm failed: {e}")
+            self._wdog = None
 
 # Start up Wenet TX.
 picam = None
 tx = PacketTX.PacketTX(radio=radio, callsign=callsign, log_file="debug.log", udp_listener=55674)
 tx.start_tx()
+
+# Start hardware watchdog. Pets /dev/watchdog only when tx_packet_count moves.
+watchdog = HardwareWatchdog(radio)
+watchdog.start()
 
 # Sleep for a second to let the transmitter fire up.
 time.sleep(1)
@@ -122,8 +205,12 @@ def handle_gps_data(gps_data):
 	except:
 		cam_metadata = None
 
+	power_data = None
+	if power_telem:
+		power_data = power_telem.read()
+
 	# Immediately generate and transmit a GPS packet.
-	tx.transmit_gps_telemetry(gps_data, cam_metadata)
+	tx.transmit_gps_telemetry(gps_data, cam_metadata, power_data)
 
 	# If we have GPS fix, update the max altitude field.
 	if (gps_data['altitude'] > max_altitude) and (gps_data['gpsFix'] == 3):
@@ -178,6 +265,7 @@ def post_process_image(filename):
 	global gps, max_altitude, args, tx
 
 	# Try and grab current GPS data snapshot
+	gps_exif_commmand = None
 	try:
 		if gps != None:
 			gps_state = gps.read_state()
@@ -199,6 +287,11 @@ def post_process_image(filename):
 					int(max_altitude),
 					gps_state['ground_speed'],
 					gps_state['ascent_rate'])
+				gps_exif_commmand = "exiftool -overwrite_original -GPSLatitude*=%.5f -GPSLongitude*=%.5f -GPSAltitude*=%d " % (
+					gps_state['latitude'],
+					gps_state['longitude'],
+					int(gps_state['altitude'])
+				)
 		else:
 			gps_string = ""
 	except:
@@ -220,6 +313,12 @@ def post_process_image(filename):
 	return_code = os.system(overlay_str)
 	if return_code != 0:
 		tx.transmit_text_message("Image Overlay operation failed! (Possible kernel Oops? Maybe set arm_freq to 700 MHz)")
+
+	if gps_exif_commmand:
+		gps_exif_commmand += filename
+		return_code = os.system(gps_exif_commmand)
+		if return_code != 0:
+			tx.transmit_text_message("Image EXIF GPS data update failed!")
 
 	return
 
@@ -247,6 +346,11 @@ picam.run(destination_directory="./tx_images/",
 	)
 
 
+# Treat SIGTERM (systemctl stop) the same as Ctrl-C so the watchdog gets disarmed cleanly.
+def _sigterm_handler(signum, frame):
+    raise KeyboardInterrupt()
+signal.signal(signal.SIGTERM, _sigterm_handler)
+
 # Main 'loop'.
 try:
 	while True:
@@ -257,23 +361,9 @@ try:
 # Only really used during debugging.
 except KeyboardInterrupt:
 	print("Closing")
+	watchdog.disarm()
 	picam.stop()
 	tx.close()
+	radio.shutdown()
 	if gps:
 		gps.close()
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

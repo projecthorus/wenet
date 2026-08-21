@@ -72,9 +72,19 @@ class RFM98W(object):
         Initialise (or re-initialise) both the RFM98W and Serial connections.
         Configure the RFM98W into direct asynchronous FSK mode, with the appropriate power, deviation, and transmit frequency.
         """
-    
-        # Cleanup any open file handlers.
+
         if self.hw:
+            # Drop the radio into FSK sleep before tearing down SPI. On a re-init the
+            # chip is still in TX mode, and LongRangeMode (bit 7 of RegOpMode) can only
+            # be changed from sleep - so leaving it in TX means the sleep write below
+            # lands as 0x00 rather than 0x80, and the mode cache goes out of sync.
+            try:
+                self.lora.set_register(0x01, 0x00)
+            except:
+                pass
+            # Drop the old LoRaRFM98W while SPI is still open - its __del__ does a final
+            # set_mode(), which raises 'Bad file descriptor' if teardown() got there first.
+            self.lora = None
             self.hw.teardown()
 
         if self.led:
@@ -105,6 +115,7 @@ class RFM98W(object):
 
         # Refer https://cdn.sparkfun.com/assets/learn_tutorials/8/0/4/RFM95_96_97_98W.pdf
         self.lora.set_register(0x01,0x00) # FSK Sleep Mode
+        self.lora.mode = 0x00 # set_register bypasses LoRaRFM98W's mode cache, so sync it by hand
         self.lora.set_register(0x31,0x00) # Set Continuous Transmit Mode
 
         # Get the IC temperature
@@ -121,18 +132,27 @@ class RFM98W(object):
         self.lora.set_register(0x05,_dev_lsb)
     
         # Set Transmit power
-        tx_power_lookup = {0:0x80, 1:0x80, 2:0x80, 3:0x81, 4:0x82, 5:0x83, 6:0x84, 7:0x85, 8:0x86, 9:0x87, 10:0x88, 11:0x89, 12:0x8A, 13:0x8B, 14:0x8C, 15:0x8D, 16:0x8E, 17:0x8F}
+        tx_power_lookup = {0:0x80, 1:0x80, 2:0x80, 3:0x81, 4:0x82, 5:0x83, 6:0x84, 7:0x85, 8:0x86, 9:0x87, 10:0x88, 11:0x89, 12:0x8A, 13:0x8B, 14:0x8C, 15:0x8D, 16:0x8E, 17:0x8F, 20:0xFF}
         if self.tx_power_dbm in tx_power_lookup:
             self.lora.set_register(0x09, tx_power_lookup[self.tx_power_dbm])
+            if self.tx_power_dbm == 20:
+                self.lora.set_register(0x0B, 0x39) # Raise Over-Current Protection to 240mA
+                self.lora.set_register(0x4D, 0x87) # Enable High Power PA_DAC
+            else:
+                self.lora.set_register(0x0B, 0x2B) # Restore default OCP
+                self.lora.set_register(0x4D, 0x84) # Restore default PA_DAC
             logging.info(f"RFM98W - TX Power set to {self.tx_power_dbm} dBm ({hex(tx_power_lookup[self.tx_power_dbm])}).")
         else:
             # Default to low power, 1.5mW or so
+            self.lora.set_register(0x0B, 0x2B) # Restore default OCP
+            self.lora.set_register(0x4D, 0x84) # Restore default PA_DAC
             self.lora.set_register(0x09, 0x80)
             logging.info(f"RFM98W - Unknown TX power, setting to 2 dBm (0x80).")
 
         # Go into TX mode.
         self.lora.set_register(0x01,0x02) # .. via FSTX mode (where the transmit frequency actually gets set)
         self.lora.set_register(0x01,0x03) # Now we're in TX mode...
+        self.lora.mode = 0x03
 
         # Seems we need to briefly sleep before we can read the register correctly.
         time.sleep(0.1)
@@ -152,10 +172,13 @@ class RFM98W(object):
         """
 
         try:
-            # Set radio into FSK sleep mode
-            self.lora.set_register(0x01,0x00)
-            logging.info("RFM98W - Set radio into sleep mode.")
-            self.lora = None
+            if self.lora is not None:
+                # Standby first (disables PA and stops carrier), then Sleep (powers down PLL).
+                # Skipping standby leaves a CW carrier
+                self.lora.set_register(0x01, 0x01) # FSK Standby (PA off, carrier stopped)
+                self.lora.set_register(0x01, 0x00) # FSK Sleep
+                logging.info("RFM98W - Set radio into sleep mode.")
+                self.lora = None
         except:
             pass
 
@@ -418,20 +441,28 @@ class RFM98W_I2S(RFM98W):
 
     def shutdown(self):
         """
-        Shutdown the RFM98W, and close the SPI and Serial connections.
+        Shutdown the RFM98W, and close the I2S audio device.
         """
 
+        # Put the radio into standby/sleep first (stops the carrier).
+        # Must happen before closing PCM, since super().shutdown() touches
+        # SPI which must still be alive at this point.
+        super().shutdown()
+
         try:
-            # Close the audio device
-            self.pcm.close()
-            logging.info("RFM98W - Closed audio device")
-            self.pcm = None
+            if self.pcm is not None:
+                self.pcm.close()
+                logging.info("RFM98W - Closed audio device")
+                self.pcm = None
         except:
             pass
 
-        return
 
 
+    # Set to a packet count value to trigger a simulated tx_thread hang at that point.
+    # e.g. _SIMULATE_HANG_AT = 200  (hangs after ~10 seconds at 96kbaud)
+    # Set to None to disable.
+    _SIMULATE_HANG_AT = None
 
     def transmit_packet(self, packet):
         """
@@ -455,6 +486,12 @@ class RFM98W_I2S(RFM98W):
             frame_length = (len(buffer)//self.channels//self.audio_width)
             if frame_length % self.periodsize != 0:
                 logging.critical(f"buffer frames length {frame_length} != periodsize {self.periodsize}")
+
+            if self._SIMULATE_HANG_AT is not None and self.tx_packet_count >= self._SIMULATE_HANG_AT:
+                logging.critical(f"WATCHDOG TEST: simulating pcm.write() hang at packet {self.tx_packet_count}")
+                import threading
+                threading.Event().wait()  # blocks forever, tx_packet_count stops incrementing
+
             self.pcm.write(buffer)
 
         super().transmit_packet(packet) # used to reinit the radio occasionally

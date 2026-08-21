@@ -15,6 +15,9 @@ test_images
 tx/tx_images/*.jpg
 picam_temp*
 *.log
+*.so
+*.ssdv
+*.pyc
 benchmarking/generated/
 benchmarking/samples/
 benchmarking/stats.txt

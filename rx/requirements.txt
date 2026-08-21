@@ -4,3 +4,4 @@ flask-socketio
 simple-websocket
 requests
 sondehub
+cbor2

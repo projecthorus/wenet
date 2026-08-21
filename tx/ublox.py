@@ -11,7 +11,7 @@ Added UBloxGPS abstraction layer class for use with Wenet TX system.
 
 import struct
 import datetime
-from threading import Thread
+from threading import Thread, Lock
 import time, os, json, calendar, math, traceback, socket, argparse
 
 # protocol constants
@@ -51,6 +51,7 @@ MSG_NAV_TIMEGPS   = 0x20
 MSG_NAV_TIMEUTC   = 0x21
 MSG_NAV_CLOCK     = 0x22
 MSG_NAV_SVINFO    = 0x30
+MSG_NAV_SAT       = 0x35
 MSG_NAV_AOPSTATUS = 0x60
 MSG_NAV_DGPS      = 0x31
 MSG_NAV_DOP       = 0x04
@@ -114,6 +115,7 @@ MSG_CFG_ESFG = 0x4D
 MSG_CFG_ESFWT = 0x82
 MSG_CFG_HNR = 0x5C
 MSG_CFG_VALSET = 0x8A
+MSG_CFG_VALGET = 0x8B
 
 # ESF messages
 MSG_ESF_MEAS   = 0x02
@@ -200,6 +202,27 @@ CFG_UART2OUTPROT_RTCM3X = 0x10760004
 CFG_USBOUTPROT_UBX      = 0x10780001
 CFG_USBOUTPROT_NMEA     = 0x10780002
 CFG_USBOUTPROT_RTCM3X   = 0x10780004
+CFG_I2CINPROT_UBX       = 0x10710001
+CFG_I2CINPROT_NMEA      = 0x10710002
+CFG_I2CINPROT_RTCM3X    = 0x10710004
+CFG_I2COUTPROT_UBX      = 0x10720001
+CFG_I2COUTPROT_NMEA     = 0x10720002
+CFG_I2COUTPROT_RTCM3X   = 0x10720004
+
+# CFG-MSGOUT-UBX-NAV-SAT output rate keys (SPG 5.10 / UBX >= 23.01)
+CFG_MSGOUT_NAV_SAT_I2C  = 0x20910015
+CFG_MSGOUT_NAV_SAT_UART1 = 0x20910016
+CFG_MSGOUT_NAV_SAT_UART2 = 0x20910017
+CFG_MSGOUT_NAV_SAT_USB  = 0x20910018
+
+# UART baudrate config keys (SPG 5.10 / UBX >= 23.01)
+CFG_UART1_BAUDRATE      = 0x40520001
+CFG_UART2_BAUDRATE      = 0x40530001
+
+# CFG-VALSET layer masks
+VALSET_LAYER_RAM        = 0x01
+VALSET_LAYER_BBR        = 0x02
+VALSET_LAYER_FLASH      = 0x04
 
 class UBloxError(Exception):
     '''Ublox error class'''
@@ -466,6 +489,12 @@ msg_types = {
                                                   'numCh',
                                                   '<BBBBBbhi',
                                                   ['chn', 'svid', 'flags', 'quality', 'cno', 'elev', 'azim', 'prRes']),
+    (CLASS_NAV, MSG_NAV_SAT)   : UBloxDescriptor('NAV_SAT',
+                                                  '<IBBH',
+                                                  ['iTOW', 'version', 'numSvs', 'reserved1'],
+                                                  'numSvs',
+                                                  '<BBBbhhI',
+                                                  ['gnssId', 'svId', 'cno', 'elev', 'azim', 'prRes', 'flags']),
     (CLASS_RXM, MSG_RXM_SVSI)   : UBloxDescriptor('RXM_SVSI',
                                                   '<IhBB',
                                                   ['iTOW', 'week', 'numVis', 'numSV'],
@@ -613,7 +642,7 @@ class UBloxMessage:
     def pack(self):
         '''pack a message'''
         if not self.valid():
-            raise UbloxError('INVALID MESSAGE')
+            raise UBloxError('INVALID MESSAGE')
         type = self.msg_type()
         if not type in msg_types:
             raise UBloxError('Unknown message %s' % str(type))
@@ -622,7 +651,7 @@ class UBloxMessage:
     def name(self):
         '''return the short string name for a message'''
         if not self.valid():
-            raise UbloxError('INVALID MESSAGE')
+            raise UBloxError('INVALID MESSAGE')
         type = self.msg_type()
         if not type in msg_types:
             raise UBloxError('Unknown message %s length=%u' % (str(type), len(self._buf)))
@@ -708,6 +737,8 @@ class UBlox:
         self.serial_device = port
         self.baudrate = baudrate
         self.use_sendrecv = False
+        self.use_i2c = False
+        self.i2c_addr = 0x42
         self.read_only = False
         self.debug_level = 0
 
@@ -718,8 +749,19 @@ class UBlox:
             self.dev = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             self.dev.connect(destination_addr)
             self.dev.setblocking(1)
-            self.dev.setsockopt(socket.SOL_TCP, socket.TCP_NODELAY, 1)            
+            self.dev.setsockopt(socket.SOL_TCP, socket.TCP_NODELAY, 1)
             self.use_sendrecv = True
+        elif self.serial_device.startswith("i2c:"):
+            tail = self.serial_device[4:]
+            if ':' in tail:
+                i2c_path, addr_str = tail.rsplit(':', 1)
+                self.i2c_addr = int(addr_str, 0)
+            else:
+                i2c_path = tail
+            import smbus2
+            bus_num = int(i2c_path.split('-')[-1])
+            self.dev = smbus2.SMBus(bus_num)
+            self.use_i2c = True
         elif os.path.isfile(self.serial_device):
             self.read_only = True
             self.dev = open(self.serial_device, mode='rb')
@@ -790,12 +832,24 @@ class UBlox:
     def write(self, buf):
         '''write some bytes'''
         if not self.read_only:
+            if self.use_i2c:
+                buf = bytes(buf)
+                for i in range(0, len(buf), 32):
+                    self.dev.write_i2c_block_data(self.i2c_addr, 0xFF, list(buf[i:i+32]))
+                return
             if self.use_sendrecv:
                 return self.dev.send(buf)
             return self.dev.write(buf)
 
     def read(self, n):
         '''read some bytes'''
+        if self.use_i2c:
+            avail_raw = self.dev.read_i2c_block_data(self.i2c_addr, 0xFD, 2)
+            avail = (avail_raw[0] << 8) | avail_raw[1]
+            if avail == 0 or avail == 0xFFFF:
+                time.sleep(0.05)
+                return b''
+            return bytes(self.dev.read_i2c_block_data(self.i2c_addr, 0xFF, min(n, avail, 32)))
         if self.use_sendrecv:
             import socket
             try:
@@ -828,7 +882,11 @@ class UBlox:
 
     def special_handling(self, msg):
         '''handle automatic configuration changes'''
-        if msg.name() == 'CFG_NAV5':
+        try:
+            name = msg.name()
+        except UBloxError:
+            return
+        if name == 'CFG_NAV5':
             msg.unpack()
             sendit = False
             pollit = False
@@ -846,7 +904,7 @@ class UBlox:
                 self.send(msg)
                 if pollit:
                     self.configure_poll(CLASS_CFG, MSG_CFG_NAV5)
-        if msg.name() == 'CFG_NAVX5' and self.preferred_usePPP is not None:
+        if name == 'CFG_NAVX5' and self.preferred_usePPP is not None:
             msg.unpack()
             if msg.usePPP != self.preferred_usePPP:
                 msg.usePPP = self.preferred_usePPP
@@ -952,6 +1010,19 @@ class UBlox:
         payload = struct.pack('<BBBBI', 0, layers, transaction, 0, key) + _value
         self.send_message(CLASS_CFG, MSG_CFG_VALSET, payload)
 
+    def set_baudrate(self, baudrate, uart=1, layers=None):
+        '''Set UART baudrate via CFG-VALSET (UBX >= 23.01).
+        NOTE: the new baudrate takes effect immediately on the GPS side, so no
+        ACK can be received at the old baudrate. Close and reopen the port at
+        the new baudrate after calling this.
+        uart: 1 = UART1, 2 = UART2'''
+        key_map = {1: CFG_UART1_BAUDRATE, 2: CFG_UART2_BAUDRATE}
+        if uart not in key_map:
+            raise UBloxError("Unsupported UART %d (must be 1 or 2)" % uart)
+        if layers is None:
+            layers = VALSET_LAYER_RAM | VALSET_LAYER_BBR | VALSET_LAYER_FLASH
+        self.configure_value_set(key_map[uart], struct.pack('<I', baudrate), layers=layers)
+
     def module_reset(self, set, mode):
         ''' Reset the module for hot/warm/cold start'''
         payload = struct.pack('<HBB', set, mode, 0)
@@ -961,30 +1032,6 @@ class UBlox:
 class UBloxGPS(object):
     """ UBlox GPS Abstraction Layer Class """
 
-    # Internal state dictionary, which is updated on receipt of messages.
-    state = {
-        # Basic Position Information
-        'latitude':     0.0,
-        'longitude':    0.0,
-        'altitude':     0.0,    # Altitude in metres.
-        'ground_speed': 0.0,    # Ground speed in KPH
-        'ascent_rate':  0.0,    # Descent rate in m/s
-        'heading':      0.0,    # Heading in degrees True.
-
-        # GPS State
-        'gpsFix':       0,      # GPS Fix State. 0 = No Fix, 2 = 2D Fix, 3 = 3D Fix, 5 = Time only. 
-        'numSV':        0,      # Number of satellites in use.
-        'week':         0,      # GPS Week
-        'iTOW':         0,      # GPS Seconds in week.
-        'leapS':        0,      # GPS Leap Seconds (Difference between GPS time and UTC time)
-        'timestamp':    " ",    # ISO-8601 Compliant Date-code (generate by Python's datetime.isoformat() function)
-        'datetime': datetime.datetime.now(datetime.timezone.utc),       # Fix time as a datetime object.
-        'dynamic_model': 255      # Current dynamic model in use.
-    }
-    # Lock files for writing and reading to the internal state dictionary.
-    state_writelock = False
-    state_readlock = False
-
     def __init__(self,port='/dev/ublox', baudrate=115200, timeout=2,
             callback=None,
             update_rate_ms=500,
@@ -992,6 +1039,7 @@ class UBloxGPS(object):
             debug_ptr = None,
             log_file = None,
             ntpd_update = False,
+            satellites = False,
             prot_ver=23.01):
 
         """ Initialise a UBloxGPS Abstraction layer object.
@@ -1023,6 +1071,9 @@ class UBloxGPS(object):
                       This GPS time sync should be good to maybe +/- 50 mS or so.
                       This requires the ntpdshm python library: https://pypi.python.org/pypi/ntpdshm/0.2.1
 
+        satellites: If set, MSG-NAV-SAT will be requested from the GPS and included in the state data. This can be useful for
+                    troubleshooting and viewing satellite C/N0 values. 
+
 
         """
 
@@ -1035,8 +1086,29 @@ class UBloxGPS(object):
         self.debug_ptr = debug_ptr
         self.callback = callback
         self.ntpd_shm = None
+        self.satellites = satellites
         self.prot_ver = prot_ver
 
+
+        # Internal state dictionary, updated on receipt of GPS messages.
+        self.state = {
+            'latitude':      0.0,
+            'longitude':     0.0,
+            'altitude':      0.0,
+            'ground_speed':  0.0,
+            'ascent_rate':   0.0,
+            'heading':       0.0,
+            'gpsFix':        0,
+            'numSV':         0,
+            'week':          0,
+            'iTOW':          0,
+            'leapS':         0,
+            'timestamp':     " ",
+            'datetime':      datetime.datetime.now(datetime.timezone.utc),
+            'dynamic_model': 255,
+            'satellites':    [],
+        }
+        self._state_lock = Lock()
 
         # Open log file, if one has been given.
         if log_file != None:
@@ -1063,19 +1135,19 @@ class UBloxGPS(object):
                 self.debug_message("Failed to start NTPD Interface")
 
         # Start RX thead.
-        self.rx_thread = Thread(target=self.rx_loop)
+        self.rx_thread = Thread(target=self.rx_loop, daemon=True)
         self.rx_thread.start()
 
     def setup_ublox(self):
         """ Configure the uBlox GPS """
-        self.gps.set_binary()
+        if not self.gps.use_i2c:
+            self.gps.set_binary()
         
         # Query protocol version
         # Assume < 23.01 unless PROTO_VER tells otherwise
         self.gps.configure_poll(CLASS_MON, MSG_MON_VER)
-        msg = self.gps.receive_message()
-        while msg.name() != "MON_VER":
-            time.sleep(0.05)
+        msg = None
+        while msg is None or msg.name() != "MON_VER":
             msg = self.gps.receive_message()
 
         msg.unpack()
@@ -1115,10 +1187,14 @@ class UBloxGPS(object):
             self.gps.configure_message_rate(CLASS_NAV, MSG_NAV_TIMEGPS, 1)
             self.gps.configure_message_rate(CLASS_NAV, MSG_NAV_CLOCK, 5)
         else:
-            # set UBX protocol to be only protocol on USB and UARTs
+            # set UBX protocol to be only protocol on USB, UARTs, and I2C (if active)
             self.gps.configure_value_set(CFG_UART1INPROT_UBX, True)
             self.gps.configure_value_set(CFG_UART2INPROT_UBX, True)
             self.gps.configure_value_set(CFG_USBINPROT_UBX, True)
+            if self.gps.use_i2c:
+                self.gps.configure_value_set(CFG_I2CINPROT_UBX, True)
+                self.gps.configure_value_set(CFG_I2CINPROT_NMEA, False)
+                self.gps.configure_value_set(CFG_I2CINPROT_RTCM3X, False)
 
             self.gps.configure_value_set(CFG_UART1OUTPROT_UBX, True)
             self.gps.configure_value_set(CFG_UART1OUTPROT_NMEA, False)
@@ -1129,6 +1205,10 @@ class UBloxGPS(object):
             self.gps.configure_value_set(CFG_USBOUTPROT_UBX, True)
             self.gps.configure_value_set(CFG_USBOUTPROT_NMEA, False)
             self.gps.configure_value_set(CFG_USBOUTPROT_RTCM3X, False)
+            if self.gps.use_i2c:
+                self.gps.configure_value_set(CFG_I2COUTPROT_UBX, True)
+                self.gps.configure_value_set(CFG_I2COUTPROT_NMEA, False)
+                self.gps.configure_value_set(CFG_I2COUTPROT_RTCM3X, False)
 
             self.gps.configure_solution_rate(rate_ms=self.update_rate_ms)
 
@@ -1140,6 +1220,13 @@ class UBloxGPS(object):
             self.gps.configure_message_rate(CLASS_NAV, MSG_NAV_PVT, 1)
             self.gps.configure_message_rate(CLASS_NAV, MSG_NAV_TIMEGPS, 1)
             self.gps.configure_message_rate(CLASS_NAV, MSG_NAV_CLOCK, 5)
+            
+            nav_sat_rate = bytes([1 if self.satellites else 0])
+            self.gps.configure_value_set(CFG_MSGOUT_NAV_SAT_UART1, nav_sat_rate)
+            self.gps.configure_value_set(CFG_MSGOUT_NAV_SAT_UART2, nav_sat_rate)
+            self.gps.configure_value_set(CFG_MSGOUT_NAV_SAT_USB, nav_sat_rate)
+            if self.gps.use_i2c:
+                self.gps.configure_value_set(CFG_MSGOUT_NAV_SAT_I2C, nav_sat_rate)
 
     def debug_message(self, message):
         """ Write a debug message.
@@ -1155,26 +1242,12 @@ class UBloxGPS(object):
 
     # Thread-safe read/write access into the internal state dictionary
     def write_state(self, value, parameter):
-        """ (Hopefully) thread-safe state dictionary write access """
-        while self.state_readlock:
-            pass
-
-        self.state_writelock = True
-
-        self.state[value] = parameter
-
-        self.state_writelock = False
+        with self._state_lock:
+            self.state[value] = parameter
 
     def read_state(self):
-        """ Thread-safe state dictionary read access. """
-        while self.state_writelock:
-            pass
-
-        self.state_readlock = True
-        state_copy = self.state.copy()
-        self.state_readlock = False
-
-        return state_copy
+        with self._state_lock:
+            return self.state.copy()
 
     # Function called whenever we have a new GPS fix.
     def gps_callback(self):
@@ -1220,6 +1293,8 @@ class UBloxGPS(object):
         while self.rx_running:
             try:
                 msg = self.gps.receive_message()
+                if msg is None:
+                    continue
                 msg_name = msg.name()
                 #print(msg_name)
             except Exception as e:
@@ -1237,27 +1312,28 @@ class UBloxGPS(object):
                     self.setup_ublox()
                     self.debug_message("WARNING: GPS Re-connected.")
                 except:
-                    continue
+                    pass
+                continue
 
             # If we have received a message we care about, unpack it and update our state dict.
-            if msg.name() == "NAV_SOL":
+            if msg_name == "NAV_SOL":
                 msg.unpack()
                 self.write_state('numSV', msg.numSV)
                 self.write_state('gpsFix', msg.gpsFix)
 
-            elif msg.name() == "NAV_POSLLH":
+            elif msg_name == "NAV_POSLLH":
                 msg.unpack()
                 self.write_state('latitude', msg.Latitude*1.0e-7)
                 self.write_state('longitude', msg.Longitude*1.0e-7)
                 self.write_state('altitude', msg.height*1.0e-3)
 
-            elif msg.name() == "NAV_VELNED":
+            elif msg_name == "NAV_VELNED":
                 msg.unpack()
                 self.write_state('ground_speed', msg.gSpeed*0.036) # Convert to kph
                 self.write_state('heading', msg.heading*1.0e-5)
                 self.write_state('ascent_rate', -1.0*msg.velD/100.0)
 
-            elif msg.name() == "NAV_PVT":
+            elif msg_name == "NAV_PVT":
                 msg.unpack()
                 self.write_state('numSV', msg.numSV)
                 self.write_state('gpsFix', msg.fixType)
@@ -1268,7 +1344,7 @@ class UBloxGPS(object):
                 self.write_state('heading', msg.headMot*1.0e-5)
                 self.write_state('ascent_rate', -1.0*msg.velD/1000.0)
 
-            elif msg.name() == "NAV_TIMEGPS":
+            elif msg_name == "NAV_TIMEGPS":
                 msg.unpack()
                 self.write_state('week',msg.week)
                 self.write_state('iTOW', msg.iTOW*1.0e-3)
@@ -1296,10 +1372,26 @@ class UBloxGPS(object):
                     self.gps.set_preferred_dynamic_model(self.dynamic_model)
 
                 # Send data to the callback function.
-                callback_thread = Thread(target=self.gps_callback)
+                # daemon=True: thread won't prevent process exit and won't
+                # accumulate if the callback is occasionally slow.
+                callback_thread = Thread(target=self.gps_callback, daemon=True)
                 callback_thread.start()
 
-            elif msg.name() == "CFG_NAV5":
+            elif msg_name == "NAV_SAT":
+                msg.unpack()
+                satellites = []
+                for sv in msg._recs:
+                    satellites.append({
+                        'gnssId': sv.gnssId,
+                        'svId':   sv.svId,
+                        'cno':    sv.cno,
+                        'elev':   sv.elev,
+                        'azim':   sv.azim,
+                        'flags':  sv.flags,
+                    })
+                self.write_state('satellites', satellites)
+
+            elif msg_name == "CFG_NAV5":
                 msg.unpack()
                 self.write_state('dynamic_model',msg.dynModel)
                 if msg.dynModel != self.dynamic_model:
@@ -1330,14 +1422,64 @@ if __name__ == "__main__":
     import time
 
     parser = argparse.ArgumentParser()
-    parser.add_argument("serial_port", type=str, help="uBlox GPS Serial Port. For USB-attached uBlox chipsets, this is usually /dev/ttyACM0")
-    parser.add_argument("--baudrate", default=115200, type=int, help="uBlox GPS baud rate. for USB-attached chipsets this doesn't matter. Defaults to 115200 baud.")
+    parser.add_argument("serial_port", type=str, help="Serial port (/dev/ttyS0), I2C bus (/dev/i2c-1 with --i2c), or TCP address (tcp:host:port).")
+    parser.add_argument("--baudrate", default=115200, type=int, help="Serial baud rate. Ignored for USB and I2C. Default: 115200.")
+    parser.add_argument("--i2c", action='store_true', default=False, help="Use I2C (DDC) instead of UART. serial_port should be the I2C bus device, e.g. /dev/i2c-1.")
+    parser.add_argument("--i2c-addr", default=0x42, type=lambda x: int(x, 0), help="I2C address of the GPS module. Default: 0x42.")
+    parser.add_argument("--set-baudrate", default=None, type=int, help="Set the specified UART's baudrate and save to BBR+Flash (SPG 5.10+). Exits after configuring.")
+    parser.add_argument("--uart", default=1, type=int, choices=[1, 2], help="UART port to configure with --set-baudrate (1 or 2). Default: 1")
+    parser.add_argument("--no-flash", action='store_true', default=False, help="With --set-baudrate: write to RAM+BBR only, skip Flash layer (for modules without external flash).")
     parser.add_argument("--waitforlock", default=None, type=int, help="If set, exit after the GPS has obtained lock, or a timeout (in minutes) is reached.")
     parser.add_argument("--lockcount", default=60, type=int, help="If waitforlock is specified, wait until the GPS reports lock for this many sequential fixes. Default: 60")
     parser.add_argument("--locksats", default=None, type=int, help="If waitforlock is specified, also wait until the GPS reports this many SVs used in its solution. Default: None")
     parser.add_argument("--ntp", action='store_true', default=False, help="Push time updates into NTPDSHM.")
+    parser.add_argument("--satellites", action='store_true', default=False, help="Request satellite data from GPS.")
+    parser.add_argument("--pretty", action='store_true', default=False, help="Clear the terminal on each fix and render a formatted GPS status display.")
     parser.add_argument("-v", "--verbose", action='store_true', default=False, help="Show additional debug info.")
     args = parser.parse_args()
+
+    _GNSS_NAMES = {0: 'GPS', 1: 'SBAS', 2: 'Galileo', 3: 'BeiDou', 4: 'IMES', 5: 'QZSS', 6: 'GLONASS', 7: 'NavIC'}
+    _FIX_NAMES  = {0: 'No Fix', 1: 'DR Only', 2: '2D Fix', 3: '3D Fix', 4: 'GPS+DR', 5: 'Time Only'}
+
+    def _pretty_gps(state):
+        ts    = state.get('timestamp', '---')
+        fix   = _FIX_NAMES.get(state.get('gpsFix', 0), '?')
+        numSV = state.get('numSV', 0)
+        lat   = state.get('latitude', 0.0)
+        lon   = state.get('longitude', 0.0)
+        alt   = state.get('altitude', 0.0)
+        spd   = state.get('ground_speed', 0.0)
+        asc   = state.get('ascent_rate', 0.0)
+        hdg   = state.get('heading', 0.0)
+        sats  = state.get('satellites') or []
+
+        out = ['\033[2J\033[H']  # clear + cursor home
+        out.append(f'GPS Monitor  {ts}')
+        out.append('\u2500' * 56)
+        out.append(f'Fix: {fix:<12}  SVs used: {numSV}  tracked: {len(sats)}')
+        out.append(f'Lat: {lat:+.6f}\u00b0   Lon: {lon:+.6f}\u00b0   Alt: {alt:.1f} m')
+        out.append(f'Speed: {spd:.2f} km/h   Asc: {asc:+.2f} m/s   Hdg: {hdg:.1f}\u00b0')
+
+        if sats:
+            out.append('')
+            out.append(f"  {'GNSS':<8} {'SvID':>4}  {'dBHz':>4}  {'\u2501'*20}  {'El':>3} {'Az':>3}")
+            out.append('  ' + '\u2500' * 50)
+            for sv in sorted(sats, key=lambda s: (-(s['flags'] & 0x08), -s['cno'])):
+                used  = bool(sv['flags'] & 0x08)
+                gnss  = _GNSS_NAMES.get(sv['gnssId'], f"#{sv['gnssId']}")
+                cno   = sv['cno']
+                filled = min(cno * 20 // 50, 20)
+                bar   = f"{'█' * filled:<20}"
+                mark  = ' \u25c4' if used else ''
+                if used:
+                    color = '\033[92m'   # bright green
+                elif cno > 0:
+                    color = '\033[93m'   # yellow
+                else:
+                    color = '\033[2m'    # dim
+                out.append(f"  {color}{gnss:<8} {sv['svId']:>4}  {cno:>4}  {bar}  {sv['elev']:>3}\u00b0 {sv['azim']:>3}\u00b0{mark}\033[0m")
+
+        return '\n'.join(out) + '\n'
 
     if args.verbose:
         logging_level = logging.DEBUG
@@ -1346,6 +1488,20 @@ if __name__ == "__main__":
 
     # Set up logging
     logging.basicConfig(format="%(asctime)s %(levelname)s: %(message)s", level=logging_level)
+
+    port = f"i2c:{args.serial_port}:{args.i2c_addr:#x}" if args.i2c else args.serial_port
+
+    if args.set_baudrate:
+        layers = VALSET_LAYER_RAM | VALSET_LAYER_BBR
+        if not args.no_flash:
+            layers |= VALSET_LAYER_FLASH
+        logging.info(f"Connecting to {args.serial_port} at {args.baudrate} baud...")
+        u = UBlox(port, baudrate=args.baudrate, timeout=2)
+        logging.info(f"Setting UART{args.uart} baudrate to {args.set_baudrate} bps...")
+        u.set_baudrate(args.set_baudrate, uart=args.uart, layers=layers)
+        u.close()
+        logging.info(f"Done. GPS will now communicate at {args.set_baudrate} bps.")
+        sys.exit(0)
 
     gps = None
     lock_counter = 0
@@ -1375,16 +1531,21 @@ if __name__ == "__main__":
                 logging.info(f"GNSS lock maintained for {lock_counter} fixes! Exiting..")
                 lock_acheived = True
 
-        logging.info(f"GPS State: {state}")
+        if args.pretty:
+            sys.stdout.write(_pretty_gps(state))
+            sys.stdout.flush()
+        else:
+            logging.info(f"GPS State: {state}")
 
 
     gps = UBloxGPS(
-        port=args.serial_port, 
+        port=port,
         baudrate=args.baudrate,
         callback=gps_callback, 
         update_rate_ms=500, 
         dynamic_model=DYNAMIC_MODEL_AIRBORNE1G, 
         ntpd_update=args.ntp,
+        satellites=args.satellites,
         debug_ptr=logging.info
         )
 

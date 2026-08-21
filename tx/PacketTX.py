@@ -117,8 +117,8 @@ class PacketTX(object):
 
     def start_tx(self):
         self.transmit_active = True
-        txthread = Thread(target=self.tx_thread)
-        txthread.start()
+        self.txthread = Thread(target=self.tx_thread, daemon=True)
+        self.txthread.start()
 
 
 
@@ -175,7 +175,11 @@ class PacketTX(object):
     def close(self):
         self.transmit_active = False
         self.udp_listener_running = False
-        #self.listener_thread.join()
+        # Wait for txthread to finish its current packet before returning.
+        # This prevents radio.shutdown() from calling GPIO.cleanup() while
+        # txthread is still mid-SPI-write, which causes SIGABRT.
+        if hasattr(self, 'txthread'):
+            self.txthread.join(timeout=5)
 
 
     # Deprecated function
@@ -259,7 +263,7 @@ class PacketTX(object):
         print(log_string)
 
 
-    def transmit_gps_telemetry(self, gps_data, cam_metadata=None):
+    def transmit_gps_telemetry(self, gps_data, cam_metadata=None, power_data=None):
         """ Generate and Transmit a GPS Telemetry Packet.
 
         Host platform CPU speed, temperature and load averages are collected and included in this packet too.
@@ -311,10 +315,24 @@ class PacketTX(object):
             if 'FocusFoM' in cam_metadata:
                 _focus_fom = float(cam_metadata['FocusFoM'])
 
+        _batt_v = 0
+        _batt_i = 0
+        _aux_temp = -999.0
+        if power_data:
+            if 'batt_v' in power_data:
+                _batt_v = power_data['batt_v']
+            
+            if 'batt_i' in power_data:
+                _batt_i = power_data['batt_i']
+
+            if 'aux_temp' in power_data:
+                _aux_temp = power_data['aux_temp']
+
+
 
         # Construct the packet
         try:
-            gps_packet = struct.pack(">BHIBffffffBBBffHfffffff",
+            gps_packet = struct.pack(">BHIBffffffBBBffHfffffffHHf",
                 1,  # Packet ID for the GPS Telemetry Packet.
                 gps_data['week'],
                 int(gps_data['iTOW']*1000), # Convert the GPS week value to milliseconds, and cast to an int.
@@ -338,7 +356,11 @@ class PacketTX(object):
                 _disk_percent,
                 _lens_position,
                 _sensor_temperature,
-                _focus_fom
+                _focus_fom,
+                # New fields 2025-11
+                _batt_v,
+                _batt_i,
+                _aux_temp
                 )
 
             self.queue_telemetry_packet(gps_packet)
@@ -477,6 +499,27 @@ class PacketTX(object):
 
         self.queue_telemetry_packet(_packet, repeats=repeats)
 
+    def transmit_cbor_payload_packet(self, data=[], repeats=1):
+        """ Generate and transmit a packet supplied by a 'secondary' payload, in CBOR format.
+        These will usually be provided via a UDP messaging system, described in the functions
+        further below.
+
+        Keyword Arguments:
+        data (list): The payload contents, as a list of integers. Maximum of 254 bytes.
+        repeats (int): (Optional) The number of times to transmit this packet.
+        """
+
+        # Convert the provided data to a string
+        _data = bytes(bytearray(data))
+
+        if len(_data) > 254:
+            _data = _data[:254]
+        _len = len(_data)
+
+        _packet = b"\x05" + struct.pack(">B", _len) + _data
+
+        self.queue_telemetry_packet(_packet, repeats=repeats)
+
 
     def get_cpu_temperature(self):
         """ Grab the temperature of the RPi CPU """
@@ -527,6 +570,18 @@ class PacketTX(object):
 
                 self.transmit_secondary_payload_packet(id=_id, data=packet_dict['packet'], repeats=_repeats)
 
+            elif packet_dict['type'] == 'WENET_TX_CBOR_PAYLOAD':
+                # This is a 'secondary' payload packet in CBOR format. The 'data' field which contains 
+                # the packet contents, provided as a *list of integers*.
+                # The user can optionally provide a 'repeats' integer, which defines the number of times
+                # to repeat transmission of the packet.
+                if 'repeats' in packet_dict:
+                    _repeats = int(packet_dict['repeats'])
+                else:
+                    _repeats = 1
+
+                self.transmit_cbor_payload_packet(data=packet_dict['packet'], repeats=_repeats)
+
             else:
                 pass
 
@@ -567,7 +622,7 @@ class PacketTX(object):
 
     def start_udp(self):
         if self.listener_thread is None:
-            self.listener_thread = Thread(target=self.udp_rx_thread)
+            self.listener_thread = Thread(target=self.udp_rx_thread, daemon=True)
             self.listener_thread.start()
 
 

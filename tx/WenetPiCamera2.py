@@ -327,14 +327,30 @@ class WenetPiCamera2(object):
 
             try:
                 self.capture_in_progress = True
-                # Capture image
-                metadata = self.cam.capture_file("%s_%d.jpg" % (self.temp_filename_prefix,i))
-                # Save metadata for this frame 
+                # Capture image in a thread so we can impose a timeout.
+                # cam.capture_file() can hang indefinitely if libcamera gets stuck.
+                _capture_result = [None]
+                _capture_exc = [None]
+                def _do_capture():
+                    try:
+                        _capture_result[0] = self.cam.capture_file("%s_%d.jpg" % (self.temp_filename_prefix, i))
+                    except Exception as e:
+                        _capture_exc[0] = e
+                _t = Thread(target=_do_capture, daemon=True)
+                _t.start()
+                _t.join(timeout=60)
+                if _t.is_alive():
+                    self.debug_message("Capture timed out after 60s — camera may be hung")
+                    return False
+                if _capture_exc[0]:
+                    raise _capture_exc[0]
+                metadata = _capture_result[0]
+                # Save metadata for this frame
                 img_metadata.append(metadata.copy())
                 # Separately store the focus FoM so we can look for the max easily.
                 if 'FocusFoM' in metadata:
                     focus_fom.append(metadata['FocusFoM'])
-                
+
                 self.capture_in_progress = False
                 print(f"Image captured: {time.time()}")
                 if self.image_delay > 0:
@@ -383,6 +399,7 @@ class WenetPiCamera2(object):
         # Copy best image to target filename.
         self.debug_message("Copying image to storage with filename %s" % filename)
         os.system("cp %s %s" % (best_pic, filename))
+        os.system("ln -sf %s _latest.jpg" % (filename))
 
         # Clean up temporary images.
         os.system("rm %s_*.jpg" % self.temp_filename_prefix)
@@ -438,7 +455,7 @@ class WenetPiCamera2(object):
         defined using a timestamp.
 
         Use the run() and stop() functions to start/stop this running.
-        
+
         Keyword Arguments:
         destination_directory:	Folder to save images to. Both raw JPEG and SSDV images are saved here.
         tx:		A reference to a PacketTX Object, which is used to transmit packets, and interrogate the TX queue.
@@ -558,7 +575,7 @@ class WenetPiCamera2(object):
 
         self.auto_capture_running = True
 
-        capture_thread = Thread(target=self.auto_capture, kwargs=dict(
+        capture_thread = Thread(target=self.auto_capture, daemon=True, kwargs=dict(
             destination_directory=destination_directory,
             tx = tx,
             post_process_ptr=post_process_ptr,
