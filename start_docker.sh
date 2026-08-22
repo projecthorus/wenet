@@ -36,16 +36,16 @@ BIAS=0
 # Wenet Mode Settings
 #
 # Uncomment one of the following!
-# Wenet 'Classic' (v1, RS232 framing)
-BAUD_RATE=115177
-OVERSAMPLING=8
-FRAMING_MODE=drs232_ldpc
 
 # Wenet v2 (96000 baud, no RS232 framing)
-#BAUD_RATE=96000
-#OVERSAMPLING=10
-#FRAMING_MODE=wenet_ldpc
+BAUD_RATE=96000
+OVERSAMPLING=10
+FRAMING_MODE=wenet_ldpc
 
+# Wenet 'Classic' (v1, RS232 framing)
+#BAUD_RATE=115177
+#OVERSAMPLING=8
+#FRAMING_MODE=drs232_ldpc
 
 # Upload Enable (1) or Disable (0) to control uploading to ssdv.habhub.org and SondeHub Amateur
 UPLOAD_ENABLE=1
