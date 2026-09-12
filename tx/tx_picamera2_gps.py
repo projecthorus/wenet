@@ -47,6 +47,7 @@ parser.add_argument("--num_images", type=int, default=5, help="Number of images 
 parser.add_argument("--image_delay", type=float, default=1.0, help="Delay time between each image capture. (Default: 1 second)")
 parser.add_argument("-v", "--verbose", action='store_true', default=False, help="Show additional debug info.")
 parser.add_argument("--power_telem", action='store_true', default=False, help="Transmit power telemetry collected from ADS1115")
+parser.add_argument("--save_dng", action='store_true', default=False, help="Save DNG files alongside JPEGs. Uses a lot of disk space!")
 args = parser.parse_args()
 
 if args.baudrate == None:
@@ -337,7 +338,8 @@ picam = WenetPiCamera2.WenetPiCamera2(
 		af_window=args.afwindow,
 		af_custom_map=args.afcustommap,
 		exposure_value=args.exposure,
-		use_focus_fom=args.use_focus_fom
+		use_focus_fom=args.use_focus_fom,
+		save_dng=args.save_dng
 		)
 # .. and start it capturing continuously.
 picam.run(destination_directory="./tx_images/", 

@@ -61,6 +61,7 @@ class WenetPiCamera2(object):
                 temp_filename_prefix = 'picam_temp',
                 debug_ptr = None,
                 init_retries = 10,
+                save_dng = False
                 ):
 
         """ Instantiate a WenetPiCam Object
@@ -93,6 +94,8 @@ class WenetPiCamera2(object):
             exposure_value: Add a exposure compensation. Defaults to 0.
             use_focus_fom: Set to True to use FocusFoM data to select the best image instead of file size.
             temp_filename_prefix: prefix used for temporary files.
+            init_retries: Attempt to connect to the camera this many times, with a delay in between.
+            save_dng: Save images as a DNG file alongside the JPEG. This may use a lot of disk space!
 
             debug_ptr:	'pointer' to a function which can handle debug messages.
                         This function needs to be able to accept a string.
@@ -116,6 +119,7 @@ class WenetPiCamera2(object):
         self.use_focus_fom = use_focus_fom
         self.af_window_rectangle = None # Calculated during init
         self.autofocus_mode = False
+        self.save_dng = save_dng
 
         # Camera metadata capture, so we can poll for camera stats regularly
         self.capture_in_progress = True
@@ -211,8 +215,14 @@ class WenetPiCamera2(object):
 
         # Configure camera, including flip settings.
         capture_config = self.cam.create_still_configuration(
+            raw={} if self.save_dng else None,
             transform=Transform(hflip=self.horizontal_flip, vflip=self.vertical_flip)
         )
+
+        if self.save_dng and capture_config.get("raw", None) is None:
+            self.debug_message("DNG capture requested, but this camera does not provide a raw stream. Disabling DNG capture.")
+            self.save_dng = False
+
         self.cam.configure(capture_config)
 
         # Set other settings, White Balance, exposure metering, etc.
@@ -332,10 +342,20 @@ class WenetPiCamera2(object):
                 _capture_result = [None]
                 _capture_exc = [None]
                 def _do_capture():
+                    request = None
                     try:
-                        _capture_result[0] = self.cam.capture_file("%s_%d.jpg" % (self.temp_filename_prefix, i))
+                        if self.save_dng:
+                            request = self.cam.capture_request()
+                            request.save("main", "%s_%d.jpg" % (self.temp_filename_prefix, i))
+                            request.save_dng("%s_%d.dng" % (self.temp_filename_prefix, i))
+                            _capture_result[0] = request.get_metadata()
+                        else:
+                            _capture_result[0] = self.cam.capture_file("%s_%d.jpg" % (self.temp_filename_prefix, i))
                     except Exception as e:
                         _capture_exc[0] = e
+                    finally:
+                        if request is not None:
+                            request.release()
                 _t = Thread(target=_do_capture, daemon=True)
                 _t.start()
                 _t.join(timeout=60)
@@ -399,10 +419,22 @@ class WenetPiCamera2(object):
         # Copy best image to target filename.
         self.debug_message("Copying image to storage with filename %s" % filename)
         os.system("cp %s %s" % (best_pic, filename))
+
+        if self.save_dng:
+            best_dng = os.path.splitext(best_pic)[0] + ".dng"
+            output_dng = os.path.splitext(filename)[0] + ".dng"
+            if os.path.isfile(best_dng):
+                self.debug_message("Copying DNG to storage with filename %s" % output_dng)
+                os.system("cp %s %s" % (best_dng, output_dng))
+            else:
+                self.debug_message("DNG capture enabled, but matching DNG file was not found.")
+
         os.system("ln -sf %s _latest.jpg" % (filename))
 
         # Clean up temporary images.
         os.system("rm %s_*.jpg" % self.temp_filename_prefix)
+        if self.save_dng:
+            os.system("rm %s_*.dng" % self.temp_filename_prefix)
 
         return True 
 
@@ -669,4 +701,3 @@ if __name__ == "__main__":
         print("Closing")
         picam.stop()
         tx.close()
-
