@@ -360,7 +360,7 @@ class WenetPiCamera2(object):
                 _t.start()
                 _t.join(timeout=60)
                 if _t.is_alive():
-                    self.debug_message("Capture timed out after 60s — camera may be hung")
+                    self.debug_message("Capture timed out after 60s, camera may be hung")
                     return False
                 if _capture_exc[0]:
                     raise _capture_exc[0]

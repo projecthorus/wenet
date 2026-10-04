@@ -247,11 +247,14 @@ class PacketTX(object):
         """
         # Increment text message counter.
         self.text_message_count = (self.text_message_count+1)%65536
+        # Keep transmitted text ASCII-safe before applying the packet size limit.
+        message = message.encode('ascii', errors='backslashreplace').decode('ascii')
         # Clip message if required.
         if len(message) > 252:
             message = message[:252]
 
-        packet = b"\x00" + struct.pack(">BH",len(message),self.text_message_count) + message.encode('ascii')
+        payload = message.encode('ascii')
+        packet = b"\x00" + struct.pack(">BH",len(payload),self.text_message_count) + payload
 
         self.queue_telemetry_packet(packet, repeats=repeats)
         log_string = "TXing Text Message #%d: %s" % (self.text_message_count,message)
